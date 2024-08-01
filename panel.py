@@ -114,8 +114,12 @@ class SPAWNER_GENERIC_SPAWN_UL_List(UIList):
         itemType = item.bl_rna.identifier
         Type = 'OBJECT' if itemType == 'objects' else 'COLLECTION'
         Icon = 'OBJECT_DATA' if itemType == 'objects' else 'OUTLINER_COLLECTION'
-        layout.label(text=item.name, icon=Icon)
-        op = layout.operator('spawner.spawner')
+        row = layout.row()
+        #row.alignment='RIGHT'
+        row.label(text=item.name, icon=Icon)
+        row = row.row()
+        row.alignment='RIGHT'
+        op = row.operator('spawner.spawner')
 
         if props.view == 'BLENDS':
             op.blend = props.selected_blend
