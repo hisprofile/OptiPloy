@@ -8,7 +8,7 @@ bl_info = {
     "location" : "View3d > Spawner",
     "support" : "COMMUNITY",
     "category" : "Assets",
-    "doc_url": "https://github.com/hisprofile/TF2-Trifecta/blob/main/README.md"
+    "doc_url": "https://github.com/hisprofile/OptiDrop"
 }
 
 from . import preferences, panel
