@@ -1,6 +1,6 @@
-IDNAME = 'OptiDrop'
+IDNAME = 'OptiPloy'
 bl_info = {
-    "name" : 'OptiDrop' ,
+    "name" : 'OptiPloy' ,
     "description" : "Append things like rigs while linking all the useless data back to the source .blend file",
     "author" : "hisanimations",
     "version" : (1, 0, 0),

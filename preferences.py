@@ -13,26 +13,29 @@ from bpy.types import (UIList, PropertyGroup,
 from bpy_extras.io_utils import ImportHelper
 
 def sorter(self, context):
+    print('sorting!')
     prefs = context.preferences.addons[IDNAME].preferences
-    indices = sorted([i.name.lower() for i in prefs.blends], reverse=True)
-    active = prefs.blends[prefs.blend_index].name
+    indices = sorted([(i.name.lower(), i.name) for i in prefs.blends], key=lambda a: a[0], reverse=True)
+    print(indices)
+    if indices:
+        active = prefs.blends[prefs.blend_index].name
 
-    for blend in indices:
-        #print(blend)
-        ind = prefs.blends.find(blend)
-        prefs.blends.move(ind, 0)
+        for blend, b in indices:
+            #print(blend)
+            ind = prefs.blends.find(b)
+            prefs.blends.move(ind, 0)
 
-    prefs.blend_index = prefs.blends.find(active)
+        prefs.blend_index = prefs.blends.find(active)
 
-    indices = sorted([i.name.lower() for i in prefs.folders], reverse=True)
-    active = prefs.folders[prefs.folder_index].name
+    indices = sorted([(i.name.lower(), i.name) for i in prefs.folders], key=lambda a: a[0], reverse=True)
+    if indices:
+        active = prefs.folders[prefs.folder_index].name
+        for folder, f in indices:
+            #print(blend)
+            ind = prefs.folders.find(f)
+            prefs.folders.move(ind, 0)
 
-    for folder in indices:
-        #print(blend)
-        ind = prefs.folders.find(folder)
-        prefs.folders.move(ind, 0)
-
-    prefs.folder_index = prefs.folders.find(active)
+        prefs.folder_index = prefs.folders.find(active)
 
 def exists(self, context):
 
@@ -98,9 +101,9 @@ class folders(PropertyGroup):
     blends: CollectionProperty(type=blends, name='.blend files', description='List of .blend files under this folder.')
     blend_index: IntProperty(default=0)
     filepath: StringProperty(name='Folder Path', description='Path to this directory', subtype='DIR_PATH', update=exists)
-    name: StringProperty(name='Name', options=set())
+    name: StringProperty(name='Name', options=set(), update=sorter)
     exists: BoolProperty(default=False)
-    selected_blend: EnumProperty(items=folders_blend_CB)
+    selected_blend: EnumProperty(items=folders_blend_CB, name='Selected .blend', description='Selected .blend file under active folder')
 
 
 class BLENDS_SPAWNER_UL_List(UIList):
@@ -189,7 +192,12 @@ class blendentriespref(AddonPreferences):
         layout = self.layout
 
         #.blend files
-        layout.row().label(text='.blend entries')
+        op = layout.row().operator('spawner.textbox', text="Assets not showing?", icon='QUESTION')
+        op.text = 'In OptiPloy, collections or objects need to be marked as "Assets" if they are to be used. If the scanning isn\'t returning any results, try marking objects or collections as assets.'
+        op.size = '56'
+        op.icons = 'ASSET_MANAGER'
+        op.width=350
+        layout.row().label(text='.blend entries', icon='BLENDER')
         box = layout.box()
         row = box.row()
         row.template_list('BLENDS_SPAWNER_UL_List', 'Blends', self, 'blends', self, 'blend_index')
@@ -204,15 +212,22 @@ class blendentriespref(AddonPreferences):
             row = box.row()
             row.prop(self, 'blend_more_info', toggle=True)
             if self.blend_more_info:
+
                 box.row().label(text='Objects', icon='OBJECT_DATA')
                 objBox = box.box()
-                objBox.template_list('SPAWNER_GENERIC_UL_List', 'Objects', blend, 'objects', self, 'null')
+                if len(blend.objects) > 0:
+                    objBox.template_list('SPAWNER_GENERIC_UL_List', 'Objects', blend, 'objects', self, 'null')
+                else:
+                    objBox.label(text='No objects!')
                 
                 box.row().label(text='Collections', icon='OUTLINER_COLLECTION')
                 colBox = box.box()
-                colBox.template_list('SPAWNER_GENERIC_UL_List', 'Collections', blend, 'collections', self, 'null')
+                if len(blend.collections) > 0:
+                    colBox.template_list('SPAWNER_GENERIC_UL_List', 'Collections', blend, 'collections', self, 'null')
+                else:
+                    colBox.label(text='No collections!')
 
-        layout.row().label(text='Folder entries')
+        layout.row().label(text='Folder entries', icon='FILE_FOLDER')
         box = layout.box()
         row = box.row()
         row.template_list('FOLDERS_SPAWNER_UL_List', 'Folders', self, 'folders', self, 'folder_index')
@@ -229,16 +244,18 @@ class blendentriespref(AddonPreferences):
                 blend = folder.blends[max(min(folder.blend_index, len(folder.blends)-1), 0)]
                 row = box.row()
                 row.template_list('BLENDS_SPAWNER_UL_List', '.blend files', folder, 'blends', folder, 'blend_index')
-
+                box.row().label(text='Objects', icon='OBJECT_DATA')
+                objBox = box.box()
                 if len(blend.objects) > 0:
-                    box.row().label(text='Objects', icon='OBJECT_DATA')
-                    objBox = box.box()
                     objBox.template_list('SPAWNER_GENERIC_UL_List', 'Objects', blend, 'objects', self, 'null')
-                
-                if len(blend.collections) > 0:
-                    box.row().label(text='Collections', icon='OUTLINER_COLLECTION')
-                    colBox = box.box()
+                else:
+                    objBox.label(text='No objects!')
+                box.row().label(text='Collections', icon='OUTLINER_COLLECTION')
+                colBox = box.box()
+                if len(blend.collections) > 0:    
                     colBox.template_list('SPAWNER_GENERIC_UL_List', 'Collections', blend, 'collections', self, 'null')
+                else:
+                    colBox.label(text='No collections!')
                 #box.row().label(text='Objects', icon='OBJECT_DATA')
                 #objBox = box.box()
                 #objBox.template_list('SPAWNER_GENERIC_UL_List', 'Objects', blend, 'objects', self, 'null')
@@ -248,7 +265,6 @@ class blendentriespref(AddonPreferences):
                 #colBox.template_list('SPAWNER_GENERIC_UL_List', 'Collections', blend, 'collections', self, 'null')
 
         
-
 class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
     bl_idname = 'spawner.add_entry'
     bl_label = 'Add Blend Entry'
@@ -257,26 +273,33 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
     filepath: StringProperty()
     directory: StringProperty()
     blends: BoolProperty(default=True)
+    filter_glob: StringProperty(default='*.blend')
+    
+    #use_filter_blend: True
 
     def execute(self, context):
         prefs = context.preferences.addons[IDNAME].preferences
         if self.blends:
             new_entry = prefs.blends.add()
             new_entry.filepath = self.filepath
-            new_entry.name = os.path.basename(self.filepath).rsplit('.', maxsplit=1)[0]
-            prefs.blend_index = prefs.blends.find(new_entry.name)
+            name = os.path.basename(self.filepath).rsplit('.', maxsplit=1)[0]
+            new_entry.name = name
+            prefs.blend_index = prefs.blends.find(name)
+            bpy.ops.spawner.scan(blend=prefs.blend_index, folder=-1, scan_blend=False, scan_folder=False)
+            
         else:
             new_entry = prefs.folders.add()
             new_entry.filepath = self.directory
-            print(os.path.basename(self.directory), self.directory)
-            new_entry.name = os.path.basename(self.directory[:-1 if self.directory[-1] in {'/', '\\'} else None])
-            prefs.folder_index = prefs.folders.find(new_entry.name)
-        return {'FINISHED'}
+            name = os.path.basename(self.directory[:-1 if self.directory[-1] in {'/', '\\'} else None])
+            new_entry.name = name
+            prefs.folder_index = prefs.folders.find(name)
+            bpy.ops.spawner.scan(blend=-1, folder=prefs.folder_index, scan_blend=False, scan_folder=False)
 
+        return {'FINISHED'}
     
 class SPAWNER_OT_Remove_Entry(Operator):
     bl_idname = 'spawner.remove_entry'
-    bl_label = 'Add Blend Entry'
+    bl_label = 'Remove Blend Entry'
     bl_description = 'Add a .blend file to spawn from'
 
     blends: BoolProperty(default=True)
@@ -349,7 +372,7 @@ def scan(item, skip = False) -> list:
 
 class SPAWNER_OT_SCAN(Operator):
     bl_idname = 'spawner.scan'
-    bl_label = 'Scanner'
+    bl_label = 'Scan'
     bl_description = 'Combs through .blend files to look for spawnable objects or collections'
 
     blend: IntProperty(name='.blend file', default=-1)
@@ -378,7 +401,7 @@ class SPAWNER_OT_SCAN(Operator):
             return {'FINISHED'}
         if blend != -1 and folder == -1:
             blend = prefs.blends[blend]
-            scan(blend)
+            scan(blend, False)
             return {'FINISHED'}
         
         if folder != -1 and blend == -1:

@@ -62,15 +62,14 @@ def load_data(context, item, *, obj=None, col=None):
         for colChild in col.children_recursive:
             recursive(colChild)
 
+            for object in colChild.objects:
+                recursive(object)
+
         context.scene.collection.children.link(col)
                 
         for object in col.objects:
             recursive(object)
     
-    #for ID in newOBJs:
-    #    if map_to_do.get(ID) != None: continue
-    #    recursive(ID)
-
     if prefs.localize_meshes:
         for ID in newMesh:
             recursive(ID)
@@ -95,9 +94,10 @@ def load_data(context, item, *, obj=None, col=None):
             object = object.parent
             activeCol.objects.link(object)
         activeCol.objects.link(obj)
-        object.location = context.scene.cursor.location
+        if prefs.to_cursor:
+            object.location = context.scene.cursor.location
 
-    if col:
+    if col and prefs.to_cursor:
         for object in col.all_objects:
             if object.parent: continue
             object.location = context.scene.cursor.location
@@ -140,7 +140,7 @@ class SPAWNER_PT_panel(Panel):
     bl_label = IDNAME
     bl_space_type='VIEW_3D'
     bl_region_type='UI'
-    bl_category = 'Spawner'
+    bl_category = 'OptiPloy'
 
     def draw(self, context):
         prefs = context.preferences.addons[IDNAME].preferences
@@ -153,31 +153,38 @@ class SPAWNER_PT_panel(Panel):
         row.label(text='View Mode')
         row.alignment = 'RIGHT'
         row.scale_x = 2
-        #row.ui_units_x = 2
         row.scale_y = 1.6
         row.prop(props, 'view', expand=True, icon_only=True, text='View')
-
-        #blend = props.selected_blend
-        #folder = props.selected_folder
 
         if props.view == 'BLENDS':
             if not len(prefs.blends):
                 layout.row().label(text='Add a .blend file in the preferences to get started!')
                 return
-            layout.row().prop(props, 'selected_blend')
+            row = layout.row()
+            row.label(text='', icon='BLENDER')
+            row = row.row()
+            row.prop(props, 'selected_blend', text='')
             blend = prefs.blends[props.selected_blend]
         
         if props.view == 'FOLDERS':
             if not len(prefs.folders):
                 layout.row().label(text='Add a folder of .blend files in the preferences to get started!')
                 return
-            layout.row().prop(props, 'selected_folder')
+            row = layout.row()
+            #row.alignment = 'LEFT'
+            row = row.row()
+            #row.alignment = 'RIGHT'
+            row.label(text='', icon='FILE_FOLDER')
+            row.prop(props, 'selected_folder', text='')
             folder = prefs.folders[props.selected_folder]
             data = folder
             if not len(folder.blends):
                 layout.row().label(text='This folder has no .blend files marked! Has it been scanned?')
                 return None
-            layout.row().prop(folder, 'selected_blend')
+            row = layout.row()
+            row.label(text='', icon='BLENDER')
+            row = row.row()
+            row.prop(folder, 'selected_blend', text='')
             blend = folder.blends[data.selected_blend]
         
         if props.view != 'TOOLS':
@@ -280,10 +287,62 @@ class SPAWNER_OBJECT_UL_List(UIList):
             index):
         layout.label(text=item.name)
 
+def textBox(self, sentence, icon='NONE', line=56):
+    layout = self.box().column()
+    sentence = sentence.split(' ')
+    mix = sentence[0]
+    sentence.pop(0)
+    broken = False
+    while True:
+        add = ' ' + sentence[0]
+        if len(mix + add) < line:
+            mix += add
+            sentence.pop(0)
+            if sentence == []:
+                layout.row().label(text=mix, icon='NONE' if broken else icon)
+                return None
+
+        else:
+            layout.row().label(text=mix, icon='NONE' if broken else icon)
+            broken = True
+            mix = sentence[0]
+            sentence.pop(0)
+            if sentence == []:
+                layout.row().label(text=mix)
+                return None
+            
+class SPAWNER_OT_genericText(bpy.types.Operator):
+    bl_idname = 'spawner.textbox'
+    bl_label = 'Hints'
+    bl_description = 'A window will display any possible questions you have'
+
+    text: StringProperty(default='')
+    icons: StringProperty()
+    size: StringProperty()
+    width: IntProperty(default=400)
+    url: StringProperty(default='')
+
+    def invoke(self, context, event):
+        if event.shift and self.url != '':
+            bpy.ops.wm.url_open(url=self.url)
+            return self.execute(context)
+        return context.window_manager.invoke_props_dialog(self, width=self.width)
+    
+    def draw(self, context):
+        sentences = self.text.split('\n')
+        icons = self.icons.split(',')
+        sizes = self.size.split(',')
+        for sentence, icon, size in zip(sentences, icons, sizes):
+            textBox(self.layout, sentence, icon, int(size))
+
+    def execute(self, context):
+        return {'FINISHED'}
+
 classes = [
     SPAWNER_PT_panel,
     SPAWNER_GENERIC_SPAWN_UL_List,
-    SPAWNER_OT_SPAWNER
+    SPAWNER_OT_SPAWNER,
+    SPAWNER_OT_genericText
 ]
 
 def register():
