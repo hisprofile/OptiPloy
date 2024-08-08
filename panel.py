@@ -1,4 +1,4 @@
-from .__init__ import IDNAME
+from . import IDNAME
 
 import bpy
 

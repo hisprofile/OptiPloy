@@ -1,5 +1,5 @@
 import bpy
-from .__init__ import IDNAME
+from . import IDNAME
 
 import os, sys, uuid
 from glob import glob
