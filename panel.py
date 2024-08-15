@@ -1,11 +1,11 @@
 from . import base_package
 
-import bpy
+import bpy, os
 
 from bpy.types import UIList, Panel, Operator
 from bpy.props import *
 
-def load_data(context: bpy.types.Context, item, *, obj:bpy.types.Object=None, col:bpy.types.Collection=None):
+def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, *, obj=None, col=None):
     prefs = context.preferences.addons[base_package].preferences
     props = context.scene.optidrop_props
     activeCol = context.view_layer.active_layer_collection.collection
@@ -29,12 +29,26 @@ def load_data(context: bpy.types.Context, item, *, obj:bpy.types.Object=None, co
     oldIMGs = {*bpy.data.images}
     oldARMs = {*bpy.data.armatures}
     oldTXTs = {*bpy.data.texts}
+
+    if not os.path.exists(item.filepath):
+        op.report({'ERROR'}, f"{item.filepath} doesn't exist!")
+        op.report({'ERROR'}, "The .blend file no longer exists!")
+        return {'CANCELLED'}
     
     with bpy.data.libraries.load(item.filepath, link=True, relative=True) as (From, To):
         if obj:
             To.objects = [obj]
         if col:
             To.collections = [col]
+
+    if obj != None:
+        if not isinstance(To.objects[0], bpy.types.Object):
+            op.report({'ERROR'}, 'Could not link the object! Does it exist in the source file?')
+            return {'CANCELLED'}
+    if col != None:
+        if not isinstance(To.collections[0], bpy.types.Collection):
+            op.report({'ERROR'}, 'Could not link the collection! Does it exist in the source file?')
+            return {'CANCELLED'}
     
     
     newOBJs = {*bpy.data.objects} - oldOBJs
@@ -47,24 +61,28 @@ def load_data(context: bpy.types.Context, item, *, obj:bpy.types.Object=None, co
     if prefs.execute_scripts:
         for txt in newTXTs:
             exec(txt.as_string())
+
     del oldOBJs
     del oldMesh
     del oldMats
     del oldNGs
     del oldIMGs
     del oldARMs
+    del oldTXTs
 
     if obj:
         obj = To.objects[0]
         if not prefs.library_overrides:
             obj = recursive(obj)
+            if obj.parent != None:
+                recursive(obj.parent)
         else:
-            obj.override_create()
-
+            obj = obj.override_create(remap_local_usages=True)
+            if obj.parent != None:
+                obj.parent.override_create(remap_local_usages=True)
 
     if col:
         col = To.collections[0]
-        
         context.scene.collection.children.link(col)
         if not prefs.library_overrides:
             col = col.make_local()
@@ -79,7 +97,7 @@ def load_data(context: bpy.types.Context, item, *, obj:bpy.types.Object=None, co
         
         else:
             new_col = col.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
-            if prefs.localize_overriden_collections:
+            if prefs.localize_overridden_collections:
                 new_col = new_col.make_local()
             context.scene.collection.children.unlink(col)
             col = new_col
@@ -151,6 +169,7 @@ def load_data(context: bpy.types.Context, item, *, obj:bpy.types.Object=None, co
             if object.parent: continue
             object.location = context.scene.cursor.location
     bpy.data.orphans_purge()
+    return {'FINISHED'}
 
 class SPAWNER_GENERIC_SPAWN_UL_List(UIList):
     def draw_item(self, context,
@@ -310,13 +329,10 @@ class SPAWNER_OT_SPAWNER(Operator):
             entry = prefs.blends[blend]
 
         if obj:
-            load_data(context, entry, obj=obj)
+            return load_data(self, context, entry, obj=obj)
         
         if col:
-            load_data(context, entry, col=col)
-
-        return {'FINISHED'}
-
+            return load_data(self, context, entry, col=col)
 
 class SPAWNER_OBJECT_UL_List(UIList):
     def draw_item(self, context,
