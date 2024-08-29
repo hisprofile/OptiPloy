@@ -1,4 +1,3 @@
-base_package = 'OptiPloy'
 bl_info = {
     "name" : 'OptiPloy' ,
     "description" : "Append things like rigs while linking all the useless data back to the source .blend file",
@@ -8,28 +7,22 @@ bl_info = {
     "location" : "View3d > Spawner",
     "support" : "COMMUNITY",
     "category" : "Assets",
-    "doc_url": "https://github.com/hisprofile/OptiDrop"
+    "doc_url": "https://github.com/hisprofile/OptiPloy"
 }
 
-from . import preferences, panel
-
-import os, glob
-import importlib, sys
-pack_path = os.path.dirname(__file__)
-
-if 'preferences' in locals():
-    importlib.reload(preferences)
-
-if 'panel' in locals():
-    importlib.reload(panel)
+base_package = __package__
+from . import preferences, panel, transmitter, tx_rx
 
 def register():
     preferences.register()
     panel.register()
+    transmitter.register()
+    tx_rx.register()
 
 def unregister():
     preferences.unregister()
     panel.unregister()
+    transmitter.unregister()
 
 if __name__ == '__main__':
     register()

@@ -4,7 +4,7 @@ schema_version = "1.0.0"
 # Change the values according to your extension
 id = "optiploy"
 version = "1.1.0"
-name = "OptiPloy"
+name = "optiploy"
 tagline = "Append and link rigs, save space like never before"
 maintainer = "hisanimations <hisprofile029@gmail.com"
 # Supported types: "add-on", "theme"

@@ -1,5 +1,7 @@
 import bpy
 from . import base_package
+from. import transmitter
+import asyncio
 
 import os, sys, uuid
 from glob import glob
@@ -14,13 +16,13 @@ from bpy_extras.io_utils import ImportHelper
 
 def sorter(self, context):
     prefs = context.preferences.addons[base_package].preferences
-    indices = sorted([(i.name.lower(), i.name) for i in prefs.blends], key=lambda a: a[0], reverse=True)
+    indices = sorted([(i.name.lower(), i.name, n) for n, i in enumerate(prefs.blends)], key=lambda a: a[0], reverse=True)
     if indices:
         active = prefs.blends[prefs.blend_index].name
 
-        for blend, b in indices:
-            ind = prefs.blends.find(b)
-            prefs.blends.move(ind, 0)
+        for blend, b, n in indices:
+            #ind = prefs.blends.find(n)
+            prefs.blends.move(n, 0)
 
         prefs.blend_index = prefs.blends.find(active)
 
@@ -78,6 +80,15 @@ class blends(PropertyGroup):
     name: StringProperty(name='Name', update=sorter)
     exists: BoolProperty(default=True)
 
+    override_behavior: BoolProperty(default=False, name='Override Behavior')
+    localize_objects: BoolProperty(default=False, name='Localize all linked objects', options=set())
+    localize_meshes: BoolProperty(default=False, name='Localize all linked mesh data blocks', options=set())
+    localize_materials: BoolProperty(default=False, name='Localize all linked materials', options=set())
+    localize_node_groups: BoolProperty(default=False, name='Localize all linked node groups', options=set())
+    localize_images: BoolProperty(default=False, name='Localize all linked images', options=set())
+    localize_armatures: BoolProperty(default=False, name='Localize all armatures', options=set())
+    localize_collections: BoolProperty(name='Localize Overridden Collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
+
 class folders(PropertyGroup):
     blends: CollectionProperty(type=blends, name='.blend files', description='List of .blend files under this folder.')
     blend_index: IntProperty(default=0)
@@ -85,6 +96,15 @@ class folders(PropertyGroup):
     name: StringProperty(name='Name', options=set(), update=sorter)
     exists: BoolProperty(default=False)
     selected_blend: EnumProperty(items=folders_blend_CB, name='Selected .blend', description='Selected .blend file under active folder')
+
+    override_behavior: BoolProperty(default=False, name='Override Behavior')
+    localize_objects: BoolProperty(default=False, name='Localize all linked objects', options=set())
+    localize_meshes: BoolProperty(default=False, name='Localize all linked mesh data blocks', options=set())
+    localize_materials: BoolProperty(default=False, name='Localize all linked materials', options=set())
+    localize_node_groups: BoolProperty(default=False, name='Localize all linked node groups', options=set())
+    localize_images: BoolProperty(default=False, name='Localize all linked images', options=set())
+    localize_armatures: BoolProperty(default=False, name='Localize all armatures', options=set())
+    localize_collections: BoolProperty(name='Localize Overridden Collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
 
 
 class BLENDS_SPAWNER_UL_List(UIList):
@@ -160,15 +180,18 @@ class blendentriespref(AddonPreferences):
     null: IntProperty(min=0, max=0)
 
     to_cursor: BoolProperty(default=True, name='Move Parents to Cursor', options=set())
-    localize_meshes: BoolProperty(default=False, name='Localize all linked mesh data blocks', options=set())
-    localize_materials: BoolProperty(default=False, name='Localize all linked materials', options=set())
-    localize_node_groups: BoolProperty(default=False, name='Localize all linked node groups', options=set())
-    localize_images: BoolProperty(default=False, name='Localize all linked images', options=set())
-    localize_armatures: BoolProperty(default=False, name='Localize all armatures', options=set())
 
-    library_overrides: BoolProperty(default=False, name='Make Library Overrides', description='Make objects and their data partially editable. You may still modify properties, such as shape keys',options=set())
-    localize_overridden_collections: BoolProperty(name='Localize Overridden Collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
-    execute_scripts: BoolProperty(default=True, name='Execute New Scripts', options=set())
+    localize_objects:       BoolProperty(default=False, name='Localize all linked objects', options=set())
+    localize_meshes:        BoolProperty(default=False, name='Localize all linked mesh data blocks', options=set())
+    localize_materials:     BoolProperty(default=False, name='Localize all linked materials', options=set())
+    localize_node_groups:   BoolProperty(default=False, name='Localize all linked node groups', options=set())
+    localize_images:        BoolProperty(default=False, name='Localize all linked images', options=set())
+    localize_armatures:     BoolProperty(default=False, name='Localize all armatures', options=set())
+    localize_collections:   BoolProperty(name='Localize Overridden Collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
+
+    #library_overrides: BoolProperty(default=False, name='Make Library Overrides', description='Make objects and their data partially editable. You may still modify properties, such as shape keys',options=set())
+    
+    execute_scripts: BoolProperty(default=True, name='Execute Attached Scripts', options=set())
     
 
     def draw(self, context):
@@ -390,7 +413,28 @@ class SPAWNER_OT_CONTEXT(Operator):
     bl_label = 'context'
 
     def execute(self, context):
-        print(dir(context.ui_list))
+        #return {'FINISHED'}
+        import random
+        print('hello!')
+        #transmitter.asyncio.run(transmitter.write_queue.put('hello!'))
+        #return {'FINISHED'}
+        transmitter.write('hello!')
+        #transmitter.put_to_queue(str(random.random()))
+        #loop = asyncio.new_event_loop()
+        #asyncio.set_event_loop(loop)
+        #asyncio.run(transmitter.write_to_this_hoe(str(random.random())))
+        #transmitter.client.write('hello!\n'.encode())
+        #transmitter.write('hello!')
+        #print(dir(context.ui_list))
+        #print('\n'.join(dir(context)))
+        #print(context.region)
+        #print(context.region_data)
+        #print(context)
+        #print(context.property)
+        #print(context.ui_list)
+        #print(context.space_data)
+        #print(context.property.index())
+        #print(dir(context.property))
         return {'FINISHED'}
 
 class spawner_props(PropertyGroup):
@@ -421,13 +465,12 @@ classes = [
 ]
 
 def register():
-    print('register panel!')
     for i in classes:
         bpy.utils.register_class(i)
 
-    
     bpy.types.Scene.optidrop_props = PointerProperty(type=spawner_props)
 
 def unregister():
     for i in reversed(classes):
         bpy.utils.unregister_class(i)
+    del bpy.types.Scene.optidrop_props
