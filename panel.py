@@ -4,6 +4,7 @@ import bpy, os
 import pickle
 
 from . import transmitter
+from . import tx_rx
 
 from bpy.types import (UIList, Panel, Operator,
                        Mesh, Object, Material,
@@ -56,300 +57,6 @@ def get_all_referenced_ids(id: ID, ref_map: Dict[ID, Set[ID]]) -> Set[ID]:
     )
     return referenced_ids
 
-def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_prefs, *, obj:str=None, col:str=None):
-    prefs = context.preferences.addons[base_package].preferences
-    props = context.scene.optidrop_props
-    activeCol = context.view_layer.active_layer_collection.collection
-    
-    #col: bpy.types.Collection = bpy.data.collections[col]
-
-    map_to_do = {}
-
-    def recursive(d_block):
-        user_map = bpy.data.user_map(subset=[d_block])
-        IDs = user_map[d_block]
-        map_to_do[d_block] = d_block.make_local()
-        
-        for ID in IDs:
-            if map_to_do.get(ID): continue
-            if getattr(ID, 'override_library') != None: continue
-            recursive(ID)
-        return d_block
-
-    
-    oldTXTs = {*bpy.data.texts}
-
-    if not os.path.exists(item.filepath):
-        op.report({'ERROR'}, f"{item.filepath} doesn't exist!")
-        op.report({'ERROR'}, "The .blend file no longer exists!")
-        return {'CANCELLED'}
-    
-        
-    with bpy.data.libraries.load(item.filepath, link=True, relative=True) as (From, To):
-        if obj:
-            To.objects = [obj]
-        if col:
-            To.collections = [col]
-
-    oldOBJs = {*bpy.data.objects}
-    oldMesh = {*bpy.data.meshes}
-    oldMats = {*bpy.data.materials}
-    oldNGs = {*bpy.data.node_groups}
-    oldIMGs = {*bpy.data.images}
-    oldARMs = {*bpy.data.armatures}
-    oldCols = {*bpy.data.collections}
-
-    gather_collections = set()
-    gather_objects = set()
-    gather_meshes = set()
-    gather_materials = set()
-    gather_node_groups = set()
-    gather_armatures = set()
-    gather_images = set()
-    gather_texts = set()
-
-    if obj:
-        obj: bpy.types.Object = To.objects[0]
-        obj = obj.override_create(remap_local_usages=True)
-        activeCol.objects.link(obj)
-        id_ref = get_id_reference_map()
-        id_ref = get_all_referenced_ids(obj, id_ref)
-
-        for ID in id_ref:
-            if isinstance(ID, Collection):
-                gather_collections.add(ID)
-            if isinstance(ID, Object):
-                gather_objects.add(ID)
-            if isinstance(ID, Mesh):
-                gather_meshes.add(ID)
-            if isinstance(ID, Material):
-                gather_materials.add(ID)
-            if isinstance(ID, NodeGroup):
-                gather_node_groups.add(ID)
-            if isinstance(ID, Image):
-                gather_images.add(ID)
-            if isinstance(ID, Armature):
-                gather_armatures.add(ID)
-            if isinstance(ID, Text):
-                gather_texts.add(ID)
-
-        if obj.parent != None:
-            obj.parent.override_create(remap_local_usages=True)
-            activeCol.objects.link(obj.parent)
-        
-        if ind_prefs.localize_objects:
-            obj.make_local()
-            if obj.parent: obj.parent.make_local()
-
-    if col:
-        col: bpy.types.Collection = To.collections[0]
-        context.scene.collection.children.link(col)
-        new_col = col.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
-        context.scene.collection.children.unlink(col)
-        col = new_col
-        id_ref = get_id_reference_map()
-        id_ref = get_all_referenced_ids(col, id_ref)
-
-        for ID in id_ref:
-            if isinstance(ID, Collection):
-                gather_collections.add(ID)
-            if isinstance(ID, Object):
-                gather_objects.add(ID)
-            if isinstance(ID, Mesh):
-                gather_meshes.add(ID)
-            if isinstance(ID, Material):
-                gather_materials.add(ID)
-            if isinstance(ID, NodeGroup):
-                gather_node_groups.add(ID)
-            if isinstance(ID, Image):
-                gather_images.add(ID)
-            if isinstance(ID, Armature):
-                gather_armatures.add(ID)
-            if isinstance(ID, Text):
-                gather_texts.add(ID)
-
-        #for object in col.all_objects:
-        #    if (object.type != 'MESH') or (object.data == None):
-        #        continue
-        #    gather_meshes.add(object.data)
-        gather_meshes_new = set()
-
-        for mesh in gather_meshes:
-            new_mesh = mesh.override_create(remap_local_usages=True)
-            #gather_meshes.remove(mesh)
-            gather_meshes_new.add(new_mesh)
-        gather_meshes = gather_meshes_new
-
-        if ind_prefs.localize_collections:
-            #recursive(col)
-            col = col.make_local()
-            for colChild in col.children_recursive:
-                #recursive(colChild)
-                colChild.make_local()
-
-        if ind_prefs.localize_objects:
-            for object in col.all_objects:
-                object.make_local()
-                #recursive(object)
-
-    if ind_prefs.localize_meshes:
-        for mesh in gather_meshes:
-            #recursive(mesh)
-            mesh.make_local()
-    #else:
-    #    mesh: Mesh
-    #    for mesh in gather_meshes:
-    #        mesh.override_create(remap_local_usages=True)
-
-    if ind_prefs.localize_materials:
-        for material in gather_materials:
-            recursive(material)
-
-    if ind_prefs.localize_node_groups:
-        for node_group in gather_node_groups:
-            recursive(node_group)
-    
-    if ind_prefs.localize_images:
-        for image in gather_images:
-            recursive(image)
-
-    if ind_prefs.localize_armatures:
-        for armature in gather_armatures:
-            recursive(armature)
-    else:
-        armature: Armature
-        for armature in gather_armatures:
-            armature.override_create(remap_local_usages=True)
-
-    #for linked, local in list(map_to_do.items()):
-    #    linked.user_remap(local)
-
-    #context.scene.collection.children.link(new_col)
-    return {'FINISHED'}
-
-    if obj != None:
-        if not isinstance(To.objects[0], bpy.types.Object):
-            op.report({'ERROR'}, 'Could not link the object! Does it exist in the source file?')
-            return {'CANCELLED'}
-    if col != None:
-        if not isinstance(To.collections[0], bpy.types.Collection):
-            op.report({'ERROR'}, 'Could not link the collection! Does it exist in the source file?')
-            return {'CANCELLED'}
-        
-    reference_map = id_map_utils.get_id_reference_map()
-    # find what datablocks is being used by one datablock
-
-    referenced_by_map = bpy.data.user_map()
-    # find what datablocks is using one datablock
-    
-    #newOBJs = {*bpy.data.objects} - oldOBJs
-    newMesh = {*bpy.data.meshes} - oldMesh
-    newMats = {*bpy.data.materials} - oldMats
-    newNGs = {*bpy.data.node_groups} - oldNGs
-    newIMGs = {*bpy.data.images} - oldIMGs
-    newARMs = {*bpy.data.armatures} - oldARMs
-    newTXTs = {*bpy.data.texts} - oldTXTs
-    if prefs.execute_scripts:
-        for txt in newTXTs:
-            txt.as_module()
-
-    del oldOBJs
-    del oldMesh
-    del oldMats
-    del oldNGs
-    del oldIMGs
-    del oldARMs
-    del oldTXTs
-
-    gather_meshes = set()
-
-    if obj:
-        obj = To.objects[0]
-        if not prefs.library_overrides:
-            obj = recursive(obj)
-            if obj.parent != None:
-                recursive(obj.parent)
-        else:
-            obj = obj.override_create(remap_local_usages=True)
-            if obj.parent != None:
-                obj.parent.override_create(remap_local_usages=True)
-
-    if col:
-        col = To.collections[0]
-        context.scene.collection.children.link(col)
-        if not prefs.library_overrides:
-            col = col.make_local()
-            for colChild in col.children_recursive:
-                recursive(colChild)
-
-                for object in colChild.objects:
-                    recursive(object)
-
-            for object in col.objects:
-                recursive(object)
-
-            for object in col.all_objects:
-                if object.type != 'MESH':
-                    continue
-                gather_meshes.add(object.data)
-        
-        else:
-            new_col = col.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
-            if prefs.localize_overridden_collections:
-                new_col = new_col.make_local()
-            context.scene.collection.children.unlink(col)
-            col = new_col
-            gather_meshes = set()
-
-            for object in col.all_objects:
-                if object.type != 'MESH':
-                    continue
-                gather_meshes.add(object.data)
-
-            for mesh in gather_meshes:
-                mesh.override_create(remap_local_usages=True)
-
-            '''
-            
-            Disregard last comment. I don't know what was happening.
-            
-            '''
-
-    if not prefs.library_overrides:
-        if prefs.localize_meshes:
-            for ID in gather_meshes:
-                recursive(ID)
-        if prefs.localize_materials:
-            for ID in newMats:
-                recursive(ID)
-        if prefs.localize_node_groups:
-            for ID in newNGs:
-                recursive(ID)
-        if prefs.localize_images:
-            for ID in newIMGs:
-                recursive(ID)
-        if prefs.localize_armatures:
-            for ID in newARMs:
-                recursive(ID)
-    
-        for linked, local in list(map_to_do.items()):
-            linked.user_remap(local)
-
-    if obj:
-        object = obj
-        while object.parent != None:
-            object = object.parent
-            activeCol.objects.link(object)
-        activeCol.objects.link(obj)
-        if prefs.to_cursor:
-            object.location = context.scene.cursor.location
-
-    if col and prefs.to_cursor:
-        for object in col.all_objects:
-            if object.parent: continue
-            object.location = context.scene.cursor.location
-    bpy.data.orphans_purge()
-    return {'FINISHED'}
 
 class SPAWNER_GENERIC_SPAWN_UL_List(UIList):
     def draw_item(self, context,
@@ -468,14 +175,6 @@ class SPAWNER_PT_panel(Panel):
             box.prop(prefs, 'localize_images')
             box.prop(prefs, 'localize_armatures')
             box.prop(prefs, 'localize_collections')
-            '''
-            layout.label(text='Library Overrides')
-            box = layout.box()
-            box.prop(prefs, 'library_overrides')
-            r = box.row()
-            r.enabled = prefs.library_overrides
-            r.prop(prefs, 'localize_overridden_collections')
-            '''
 
 class SPAWNER_OT_SPAWNER(Operator):
     bl_idname = 'spawner.spawner'
@@ -498,6 +197,17 @@ class SPAWNER_OT_SPAWNER(Operator):
     collection: StringProperty(default='')
 
     def execute(self, context):
+        if transmitter.client == None:
+            print("OptiPloy's second instance of Blender does not exist. Launching...")
+            tx_rx.register()
+            timeout = time.time()
+            while transmitter.last_msg != 'CLIENT_CONNECTED':
+                time.sleep(1)
+                if (time.time() - timeout) > 10:
+                    print("Could not create new instance of OptiPloy!")
+                    self.report({'ERROR'}, "Could not create new instance of OptiPloy!")
+                    return {'CANCELLED'}
+        root_prefs = context.preferences.addons[base_package].preferences
         prefs = context.preferences.addons[base_package].preferences
         props = context.scene.optidrop_props
         blend = self.blend
@@ -505,6 +215,8 @@ class SPAWNER_OT_SPAWNER(Operator):
         obj = self.object
         col = self.collection
         prefs_dict = dict()
+        attempts = 0
+        blend_path = os.path.join(folder_path, 'temp.blend')
 
         options = [
             'localize_objects',
@@ -532,6 +244,12 @@ class SPAWNER_OT_SPAWNER(Operator):
         for option in options:
             prefs_dict[option] = getattr(prefs, option)
 
+        prefs_dict['localize_collections'] = True
+        prefs_dict['localize_objects'] = True
+
+        if not os.path.exists(entry.filepath):
+            self.report({'ERROR'}, 'Filepath for this .blend file no longer exists!')
+            return {'CANCELLED'}
 
         prefs_dict['filepath'] = entry.filepath
         
@@ -545,21 +263,88 @@ class SPAWNER_OT_SPAWNER(Operator):
         transmitter.write('INCOMING_JOB')
         transmitter.write(dict_as_bytes)
 
-        while transmitter.last_msg[0] != 'JOB_FINISHED':
-            time.sleep(0.1)
+        while transmitter.last_msg != 'JOB_FINISHED': # Do nothing until received JOB_FINISHED
+            time.sleep(0.01)
+            if transmitter.last_msg == 'CLIENT_CLOSE':
+                attempts += 1
+                if attempts == 3:
+                    self.report({'ERROR'}, 'Client crashed three times while trying to complete job. Check console for errors!')
+                    return {'CANCELLED'}
+                self.report({'WARNING'}, 'Client crashed while performing job. Retrying...')
+                while transmitter.last_msg != 'CLIENT_CONNECTED':
+                    time.sleep(0.1)
+                transmitter.write('INCOMING_JOB')
+                transmitter.write(dict_as_bytes)
+            continue
+
+        if transmitter.last_msg == 'JOB_FINISHED':
+            pass
+        elif transmitter.last_msg == 'BAD_FILE':
+            self.report({'ERROR'}, 'The file you attempted to load from is corrupt!')
+            return {'CANCELLED'}
+        else:
+            self.report({'ERROR'}, 'Received an inappropriate response from the client! Result of job is undetermined!')
+            if os.path.exists(blend_path):
+                os.remove(blend_path)
+            return {'CANCELLED'}
 
         transmitter.write('NOTED')
 
-        with bpy.data.libraries.load(os.path.join(folder_path, 'temp.blend'), relative=True) as (From, To):
+        with bpy.data.libraries.load(blend_path, relative=True) as (From, To):
             if obj:
                 To.objects = [obj]
-
             if col:
                 To.collections = [col]
 
+        if obj:
+            obj: bpy.types.Objects = To.objects[0]
+            activeCol = context.view_layer.active_layer_collection.collection
+            activeCol.objects.link(obj)
+
+            if obj.parent:
+                activeCol.objects.link(obj.parent)
+                obj = obj.parent
+
+            if root_prefs.to_cursor:
+                obj.location = context.scene.cursor.location
+
+            context.scene['new_spawn'] = col
+
         if col:
-            col = To.collections[0]
+            col: bpy.types.Collection = To.collections[0]
             context.scene.collection.children.link(col)
+
+            
+
+            #for obj in col.objects:
+            #    if obj.override_library:
+            #        obj.override_library.resync(context.scene, view_layer=context.view_layer)
+            #for colChild in col.children_recursive:
+            #    for obj in colChild.all_objects:
+            #        if obj.override_library:
+            #            obj.override_library.resync(context.scene, view_layer=context.view_layer)
+            #
+
+            if prefs.to_cursor:
+                for obj in col.all_objects:
+                    if obj.parent: continue
+                    obj.location = context.scene.cursor.location
+
+            #if col.override_library:
+            #    col.override_library.resync(context.scene, view_layer=None, residual_storage=None, do_hierarchy_enforce=True, do_whole_hierarchy=True)
+            context.scene['new_spawn'] = col
+
+        refmap = get_id_reference_map()
+        refmap = get_all_referenced_ids(context.scene['new_spawn'], refmap)
+
+        if prefs.execute_scripts:
+            for ID in refmap:
+                if not isinstance(ID, Text): continue
+                ID.as_module()
+
+        os.remove(blend_path)
+
+        del context.scene['new_spawn']
 
         return {'FINISHED'}
 

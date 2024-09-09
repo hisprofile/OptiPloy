@@ -17,7 +17,6 @@ from bpy.types import (UIList, Panel, Operator,
 from bpy.props import *
 
 from typing import Dict, Set
-import bpy
 from bpy.types import ID
 
 logger = logging.getLogger('optiploy_receiver')
@@ -89,35 +88,25 @@ def load_data(ind_prefs: dict, *, obj=None, col=None):
     map_to_do = {}
 
     def recursive(d_block):
+        if map_to_do.get(d_block): return
         user_map = bpy.data.user_map(subset=[d_block])
         IDs = user_map[d_block]
         map_to_do[d_block] = d_block.make_local()
-        
         for ID in IDs:
             if map_to_do.get(ID): continue
-            #if getattr(ID, 'override_library') != None: continue
             recursive(ID)
         return d_block
     
     filepath = ind_prefs['filepath']
-
     
-    oldTXTs = {*bpy.data.texts}
-    
-        
-    with bpy.data.libraries.load(filepath, link=True, relative=True) as (From, To):
-        if obj:
-            To.objects = [obj]
-        if col:
-            To.collections = [col]
-
-    oldOBJs = {*bpy.data.objects}
-    oldMesh = {*bpy.data.meshes}
-    oldMats = {*bpy.data.materials}
-    oldNGs = {*bpy.data.node_groups}
-    oldIMGs = {*bpy.data.images}
-    oldARMs = {*bpy.data.armatures}
-    oldCols = {*bpy.data.collections}
+    try:
+        with bpy.data.libraries.load(filepath, link=True, relative=True) as (From, To):
+            if obj:
+                To.objects = [obj]
+            if col:
+                To.collections = [col]
+    except:
+        return 'BAD_FILE'
 
     gather_collections = set()
     gather_objects = set()
@@ -127,6 +116,8 @@ def load_data(ind_prefs: dict, *, obj=None, col=None):
     gather_armatures = set()
     gather_images = set()
     gather_texts = set()
+
+    #bpy.ops.wm.quit_blender()
 
     if obj:
         obj: bpy.types.Object = To.objects[0]
@@ -157,16 +148,17 @@ def load_data(ind_prefs: dict, *, obj=None, col=None):
             obj.parent.override_create(remap_local_usages=True)
             activeCol.objects.link(obj.parent)
         
-        if ind_prefs.localize_objects:
-            obj.make_local()
-            if obj.parent: obj.parent.make_local()
+        obj.make_local()
+        if obj.parent: obj.parent.make_local()
+
+
 
     if col:
         col: bpy.types.Collection = To.collections[0]
         context.scene.collection.children.link(col)
-        new_col = col.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
-        context.scene.collection.children.unlink(col)
-        col = new_col
+        #new_col = col.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
+        #context.scene.collection.children.unlink(col)
+        #col = new_col
         id_ref = get_id_reference_map()
         id_ref = get_all_referenced_ids(col, id_ref)
 
@@ -188,30 +180,25 @@ def load_data(ind_prefs: dict, *, obj=None, col=None):
             if isinstance(ID, Text):
                 gather_texts.add(ID)
 
-        #for object in col.all_objects:
-        #    if (object.type != 'MESH') or (object.data == None):
-        #        continue
-        #    gather_meshes.add(object.data)
-        gather_meshes_new = set()
+        #if ind_prefs['localize_collections']:
+        col = recursive(col)
 
-        '''for mesh in gather_meshes:
-            new_mesh = mesh.override_create(remap_local_usages=True)
-            #gather_meshes.remove(mesh)
-            gather_meshes_new.add(new_mesh)
-        gather_meshes = gather_meshes_new'''
+        for colChild in col.children_recursive:
+            recursive(colChild)
 
-        if ind_prefs['localize_collections']:
-            recursive(col)
-            for cc in gather_collections:
-                recursive(cc)
+        #for cc in gather_collections:
+        #    recursive(cc)
 
-        if ind_prefs['localize_objects']:
-            for object in col.objects:
+        #if ind_prefs['localize_objects']:
+        for object in col.objects:
+            recursive(object)
+        
+        for colChild in col.children_recursive:
+            for object in colChild.objects:
                 recursive(object)
 
-            for colChild in col.children_recursive:
-                for object in colChild.objects:
-                    recursive(object)
+        #for object in gather_objects:
+        #    recursive(object)
 
             # EXCEPTION_ACCESS_VIOLATION when accessing col.all_objects
 
@@ -247,19 +234,25 @@ def load_data(ind_prefs: dict, *, obj=None, col=None):
     for linked, local in list(map_to_do.items()):
         linked.user_remap(local)
 
-    print('objs removed:', bpy.data.orphans_purge(True, True, True))
+    bpy.data.orphans_purge(True, True, True)
+    #print('objs removed:', bpy.data.orphans_purge(True, True, True))
 
-    bpy.data.libraries.write(os.path.join(folder, 'temp.blend'), {col}, path_remap='ABSOLUTE', compress=True)
+    if obj:
+        bpy.data.libraries.write(os.path.join(folder, 'temp.blend'), {obj}, path_remap='ABSOLUTE', compress=True)
+
+    if col:
+        bpy.data.libraries.write(os.path.join(folder, 'temp.blend'), {col}, path_remap='ABSOLUTE', compress=True)
 
     for attr_name in dir(bpy.data):
         attr = getattr(bpy.data, attr_name)
         if not isinstance(attr, bpy.types.bpy_prop_collection):
             continue
+
         if attr_name in {'workspaces', 'window_managers', 'screens'}:
             continue
+
         if attr == bpy.data.scenes:
             attr: bpy.types.bpy_prop_collection[bpy.types.Scene]
-            #bpy.data.batch_remove(attr[1:])
             for scn in attr:
                 if scn == context.scene:
                     continue
@@ -268,13 +261,9 @@ def load_data(ind_prefs: dict, *, obj=None, col=None):
         else:
             bpy.data.batch_remove(attr[:])
 
-        #print(len(attr), attr_name)
-
-        #bpy.context.window.screen.scene
-        bpy.context.window.scene = bpy.data.scenes[0]
-        #print(len(attr))
+        #bpy.context.window.scene = bpy.data.scenes[0]
     context.view_layer.update()
-    #context.scene.collection.children.link(new_col)
+    return 'COMPLETE'
 
 async def read_message(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     try:
@@ -306,7 +295,7 @@ async def client_init():
     for port in port_list:
         logger.info(f'Attempting to connect to server on port {port}')
         try:
-            reader, writer = await asyncio.open_connection('127.0.0.1', port)
+            reader, writer = await asyncio.wait_for(asyncio.open_connection('127.0.0.1', port), 0.1)
             try:
                 msg = await asyncio.wait_for(reader.readline(), 0.1)
             except TimeoutError:
@@ -321,9 +310,9 @@ async def client_init():
                 writer.write('OPTIPLOY_ACK\n'.encode())
                 break
             elif msg == 'SERVER_CLOSE':
-                return
+                continue
             continue
-        except (ConnectionRefusedError, OSError):
+        except (ConnectionRefusedError, OSError, TimeoutError):
             continue
     else:
         logger.error('Unable to connect to OptiPloy\'s transmitter! This should not be possible!')
@@ -339,7 +328,6 @@ async def client_init():
             return
 
         msg = msg.decode().strip()
-        tag(f'got {msg}!')
         
         last_msg[0] = msg
         if msg == 'SERVER_CLOSE':
@@ -350,16 +338,21 @@ async def client_init():
         
         if msg == 'INCOMING_JOB':
             msg = await read_message(reader, writer)
-            print('penis', msg)
-            if not msg:
-                return
             prefs_dict: dict = pickle.loads(msg)
-            #print(prefs_dict)
             obj = prefs_dict.get('obj')
             col = prefs_dict.get('col')
             path = prefs_dict['filepath']
 
-            load_data(prefs_dict, obj=obj, col=col)
+            logger.info(f'Received job to load {("object " + obj) if obj else ("collection " + col)} from {os.path.basename(path)}!')
+
+            result = load_data(prefs_dict, obj=obj, col=col)
+            if result == 'BAD_FILE':
+                logger.error(f'Failed to load!')
+                server.write(b'BAD_FILE\n')
+                continue
+
+            logger.info('Finished!')
+            logger.info('If you witnessed any errors, for some reason they\'re necessary.')
 
             server.write(b'JOB_FINISHED\n')
             continue

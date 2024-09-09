@@ -1,3 +1,7 @@
+'''
+Guess it was needed after all. Well, at least it was clearer to me this time.
+'''
+
 import asyncio
 import threading
 import bpy
@@ -22,7 +26,7 @@ if not logger.hasHandlers():
 
 
 write_queue = None #asyncio.Queue()
-last_msg = [None]
+last_msg = None
 client = None
 server = None
 loop = None
@@ -39,40 +43,9 @@ def tag(*args, **kwargs):
     print('SERVER: ', end='')
     print(*args, **kwargs)
 
-async def reader_task(r:asyncio.StreamReader):
-    while True:
-        try:
-            msg: bytes = await r.readuntil(b'\n')
-        except IncompleteReadError:
-            if client == None:
-                return
-            continue
-        tag(f'got {msg}!')
-        msg = msg.decode().strip('\n')
-        last_msg[0] = msg
-
-async def writer_task():
-    while True:
-        print('harp!')
-        await asyncio.sleep(0.01)
-        msg: str = await write_queue.get()
-        if msg == '':
-            continue
-        msg += '\n'
-        tag(f'writing {msg}')
-        client.write(msg.encode())
-
-async def write_to_this_hoe(msg:str):
-    if client == None:
-        return
-    msg = f'{msg}\n'
-    msg = msg.encode()
-    client.write(msg)
-
 def write(msg):
     if client == None:
         return
-    #print(msg, type(msg))
     if type(msg) == str:
         msg = f'{msg}\n'
         msg = msg.encode()
@@ -81,33 +54,9 @@ def write(msg):
     client.write(msg)
     client.write(b'\n')
     return
-    #print(msg)
-    
-
-def put_to_queue(item):
-    async def _(item):
-        await write_queue.put(item)
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(_(item))
-
-async def writerr():
-    while True:
-        if client:
-            client.write('hello!\n'.encode())
-        await asyncio.sleep(5)
-
-'''def write(msg:str):
-    # will not send a consistent stream of messages
-    if client == None:
-        return
-    msg = f'{msg}\n'
-    msg = msg.encode()
-    print(msg)
-    client.write(msg)
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(asyncio.sleep(0.01))'''
 
 async def clock():
+    # This is needed for a consistent flow of messages. I have no idea why.
     try:
         while True:
             await asyncio.sleep(0.01)
@@ -116,6 +65,7 @@ async def clock():
 
 async def rw_callback(reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
     global client
+    global last_msg
     if client != None:
         logger.warning('Received new client, but client already exists. Closing new client')
         writer.write('SERVER_CLOSE\n'.encode())
@@ -134,7 +84,7 @@ async def rw_callback(reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
     if msg != 'OPTIPLOY_ACK':
         writer.close()
         return
-    
+    last_msg = 'CLIENT_CONNECTED'
     client = writer
     logger.info('Client has connected!')
     tasks.add(asyncio.create_task(clock()))
@@ -164,7 +114,7 @@ async def rw_callback(reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
             or the client crashing. The client should not call to close the connection.
             '''
             logger.warning('Client unexpectedly closed. Starting new client.')
-            last_msg[0] = 'CLIENT_CLOSE'
+            last_msg = 'CLIENT_CLOSE'
             client = None
             for task in tasks:
                 task.cancel()
@@ -174,9 +124,8 @@ async def rw_callback(reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
             tx_rx.register()
             return
         
-        tag(f'got {msg}!')
         msg = msg.decode().strip('\n')
-        last_msg[0] = msg
+        last_msg = msg
 
 #@atexit.register
 def stop_server():
@@ -198,10 +147,8 @@ def stop_server():
         try:
             server.close()
         except TypeError:
-            print('it happened AGAIN')
             pass
     server = None
-    loop = asyncio.get_event_loop()
     return
 
 async def main():
@@ -229,25 +176,19 @@ async def main():
 
 def start_server():
     logger.info('Starting server')
-    #print('starting server...')
     if server != None:
         return
     global loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(main())
-    #asyncio.run(main())
     print('server has now been closed.')
 
 def register():
-    #return
-    print(f'RESET!!!!!!!!!!!!!!!!!!!!!')
-    print(random.random())
     if bpy.app.background:
         return
     thread = threading.Thread(target=start_server, daemon=True)
     thread.start()
-    print('bro')
 
 def unregister():
     print('unregister transmitter!!!')

@@ -73,7 +73,6 @@ class collections(PropertyGroup):
     name: StringProperty(default='')
 
 class blends(PropertyGroup):
-
     objects: CollectionProperty(type=objects, name='Spawnables', description='List of spawnable items detected in this .blend file')
     collections: CollectionProperty(type=collections, name='Spawnables', description='List of spawnable items detected in this .blend file')
     filepath: StringProperty(name='Filepath', description='Path to a .blend file', options=set(), subtype='FILE_PATH', update=exists)
@@ -181,13 +180,15 @@ class blendentriespref(AddonPreferences):
 
     to_cursor: BoolProperty(default=True, name='Move Parents to Cursor', options=set())
 
-    localize_objects:       BoolProperty(default=False, name='Localize all linked objects', options=set())
+    localize_objects:       BoolProperty(default=True, name='Localize all linked objects', options=set())
     localize_meshes:        BoolProperty(default=False, name='Localize all linked mesh data blocks', options=set())
     localize_materials:     BoolProperty(default=False, name='Localize all linked materials', options=set())
     localize_node_groups:   BoolProperty(default=False, name='Localize all linked node groups', options=set())
     localize_images:        BoolProperty(default=False, name='Localize all linked images', options=set())
     localize_armatures:     BoolProperty(default=False, name='Localize all armatures', options=set())
+    localize_cameras:       BoolProperty(default=False, name='Localize all cameras')
     localize_collections:   BoolProperty(name='Localize Overridden Collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
+
 
     #library_overrides: BoolProperty(default=False, name='Make Library Overrides', description='Make objects and their data partially editable. You may still modify properties, such as shape keys',options=set())
     
@@ -276,6 +277,7 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
         if self.blends:
             new_entry = prefs.blends.add()
             new_entry.filepath = self.filepath
+            new_entry.filepath = bpy.path.abspath(new_entry.filepath) # just in case
             name = os.path.basename(self.filepath).rsplit('.', maxsplit=1)[0]
             new_entry.name = name
             prefs.blend_index = prefs.blends.find(name)
@@ -284,7 +286,8 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
         else:
             new_entry = prefs.folders.add()
             new_entry.filepath = self.directory
-            name = name = os.path.basename(self.directory.rstrip("\\/"))
+            new_entry.filepath = bpy.path.abspath(new_entry.filepath) # just in case
+            name = os.path.basename(self.directory.rstrip("\\/"))
             new_entry.name = name
             prefs.folder_index = prefs.folders.find(name)
             bpy.ops.spawner.scan(blend=-1, folder=prefs.folder_index, scan_blend=False, scan_folder=False)
