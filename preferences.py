@@ -36,7 +36,6 @@ def sorter(self, context):
         prefs.folder_index = prefs.folders.find(active)
 
 def exists(self, context):
-
     prefs = context.preferences.addons[base_package].preferences
     for blend in prefs.blends:
         blend.exists = os.path.exists(blend.filepath)
@@ -80,13 +79,14 @@ class blends(PropertyGroup):
     exists: BoolProperty(default=True)
 
     override_behavior: BoolProperty(default=False, name='Override Behavior')
+    localize_collections: BoolProperty(name='Localize Overridden Collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
     localize_objects: BoolProperty(default=False, name='Localize all linked objects', options=set())
     localize_meshes: BoolProperty(default=False, name='Localize all linked mesh data blocks', options=set())
     localize_materials: BoolProperty(default=False, name='Localize all linked materials', options=set())
     localize_node_groups: BoolProperty(default=False, name='Localize all linked node groups', options=set())
     localize_images: BoolProperty(default=False, name='Localize all linked images', options=set())
     localize_armatures: BoolProperty(default=False, name='Localize all armatures', options=set())
-    localize_collections: BoolProperty(name='Localize Overridden Collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
+    localize_other_data:    BoolProperty(default=False, name='Localize all cameras')
 
 class folders(PropertyGroup):
     blends: CollectionProperty(type=blends, name='.blend files', description='List of .blend files under this folder.')
@@ -97,14 +97,14 @@ class folders(PropertyGroup):
     selected_blend: EnumProperty(items=folders_blend_CB, name='Selected .blend', description='Selected .blend file under active folder')
 
     override_behavior: BoolProperty(default=False, name='Override Behavior')
+    localize_collections: BoolProperty(name='Localize Overridden Collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
     localize_objects: BoolProperty(default=False, name='Localize all linked objects', options=set())
     localize_meshes: BoolProperty(default=False, name='Localize all linked mesh data blocks', options=set())
     localize_materials: BoolProperty(default=False, name='Localize all linked materials', options=set())
     localize_node_groups: BoolProperty(default=False, name='Localize all linked node groups', options=set())
     localize_images: BoolProperty(default=False, name='Localize all linked images', options=set())
     localize_armatures: BoolProperty(default=False, name='Localize all armatures', options=set())
-    localize_collections: BoolProperty(name='Localize Overridden Collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
-
+    localize_other_data:    BoolProperty(default=False, name='Localize all cameras')
 
 class BLENDS_SPAWNER_UL_List(UIList):
     def draw_item(self, context,
@@ -180,16 +180,15 @@ class blendentriespref(AddonPreferences):
 
     to_cursor: BoolProperty(default=True, name='Move Parents to Cursor', options=set())
 
-    localize_objects:       BoolProperty(default=True, name='Localize all linked objects', options=set())
-    localize_meshes:        BoolProperty(default=False, name='Localize all linked mesh data blocks', options=set())
-    localize_materials:     BoolProperty(default=False, name='Localize all linked materials', options=set())
-    localize_node_groups:   BoolProperty(default=False, name='Localize all linked node groups', options=set())
-    localize_images:        BoolProperty(default=False, name='Localize all linked images', options=set())
-    localize_armatures:     BoolProperty(default=False, name='Localize all armatures', options=set())
-    localize_cameras:       BoolProperty(default=False, name='Localize all cameras')
-    localize_collections:   BoolProperty(name='Localize Overridden Collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
-
-
+    localize_collections:   BoolProperty(name='Localize collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
+    localize_objects:       BoolProperty(default=True, name='Localize linked objects', options=set())
+    localize_meshes:        BoolProperty(default=False, name='Localize linked mesh data blocks', options=set())
+    localize_materials:     BoolProperty(default=False, name='Localize linked materials', options=set())
+    localize_node_groups:   BoolProperty(default=False, name='Localize linked node groups', options=set())
+    localize_images:        BoolProperty(default=False, name='Localize linked images', options=set())
+    localize_armatures:     BoolProperty(default=False, name='Localize armatures', options=set())
+    localize_other_data:    BoolProperty(default=False, name='Localize cameras', options=set())
+    
     #library_overrides: BoolProperty(default=False, name='Make Library Overrides', description='Make objects and their data partially editable. You may still modify properties, such as shape keys',options=set())
     
     execute_scripts: BoolProperty(default=True, name='Execute Attached Scripts', options=set())

@@ -81,28 +81,6 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
             linked.user_remap(local)
         map_to_do.clear()
 
-    def clean_remap(TYPE):
-        for ID in filter(lambda a: isinstance(a, TYPE), gatherings['override']):
-            map_to_do[ID] = ID.make_local()
-        remap()
-        for ID in filter(lambda a: isinstance(a, TYPE), gatherings['linked']):
-            map_to_do[ID] = ID.make_local()
-        remap()
-
-    override_support = (
-        bpy.types.Mesh,
-        bpy.types.Material,
-        bpy.types.SurfaceCurve,
-        bpy.types.Light,
-        bpy.types.Curve,
-        bpy.types.GreasePencil,
-        bpy.types.MetaBall,
-        bpy.types.TextCurve,
-        bpy.types.Volume,
-        bpy.types.Armature,
-        bpy.types.Camera
-    )
-
     
     oldTXTs = {*bpy.data.texts}
 
@@ -117,6 +95,23 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
             To.objects = [obj]
         if col:
             To.collections = [col]
+
+    oldOBJs = {*bpy.data.objects}
+    oldMesh = {*bpy.data.meshes}
+    oldMats = {*bpy.data.materials}
+    oldNGs = {*bpy.data.node_groups}
+    oldIMGs = {*bpy.data.images}
+    oldARMs = {*bpy.data.armatures}
+    oldCols = {*bpy.data.collections}
+
+    gather_collections = set()
+    gather_objects = set()
+    gather_meshes = set()
+    gather_materials = set()
+    gather_node_groups = set()
+    gather_armatures = set()
+    gather_images = set()
+    gather_texts: Set[bpy.types.Text] = set()
 
     gatherings = {
         'override': set(),
@@ -140,6 +135,23 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
                 gatherings['linked'].remove(ID.override_library.reference)
             gatherings['override'].add(ID)
 
+            #if isinstance(ID, Collection):
+            #    gather_collections.add(ID)
+            #if isinstance(ID, Object):
+            #    gather_objects.add(ID)
+            #if isinstance(ID, Mesh):
+            #    gather_meshes.add(ID)
+            #if isinstance(ID, Material):
+            #    gather_materials.add(ID)
+            #if isinstance(ID, NodeGroup):
+            #    gather_node_groups.add(ID)
+            #if isinstance(ID, Image):
+            #    gather_images.add(ID)
+            #if isinstance(ID, Armature):
+            #    gather_armatures.add(ID)
+            #if isinstance(ID, Text):
+            #    gather_texts.add(ID)
+
         if obj.parent != None:
             obj.parent.override_create(remap_local_usages=True)
             activeCol.objects.link(obj.parent)
@@ -159,27 +171,30 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
         id_ref = get_all_referenced_ids(col, id_ref)
 
         for ID in id_ref:
-            if not ID.library: continue
-
-            if isinstance(ID, override_support):
-                possible_override = ID.override_create(remap_local_usages=True)
-                if possible_override != None:
-                    ID = possible_override
-                    
-            gatherings['linked'].add(ID)
-        
-        for ID in id_ref:
+            if isinstance(ID, Text):
+                gather_texts.add(ID)
             if not ID.override_library: continue
-            if ID.override_library.reference in gatherings['linked']:
-                gatherings['linked'].remove(ID.override_library.reference)
-            gatherings['override'].add(ID)
+            if isinstance(ID, Collection):
+                gather_collections.add(ID)
+            if isinstance(ID, Object):
+                gather_objects.add(ID)
+            if isinstance(ID, Mesh):
+                gather_meshes.add(ID)
+            if isinstance(ID, Material):
+                gather_materials.add(ID)
+            if isinstance(ID, NodeGroup):
+                gather_node_groups.add(ID)
+            if isinstance(ID, Image):
+                gather_images.add(ID)
+            if isinstance(ID, Armature):
+                gather_armatures.add(ID)
 
         if ind_prefs.localize_collections:
             map_to_do[col] = col.make_local()
             for colChild in col.children_recursive:
                 map_to_do[colChild] = colChild.make_local()
 
-            remap()
+        remap()
 
         if ind_prefs.localize_objects:
             for object in col.objects:
@@ -189,49 +204,257 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
                 for object in colChild.objects:
                     map_to_do[object] = object.make_local()
 
-            remap()
+        remap()
 
         if ind_prefs.localize_meshes:
-            clean_remap(bpy.types.Mesh)
+            for mesh in gather_meshes:
+                map_to_do[mesh] = mesh.make_local()
+            remap()
+            for ID in filter(lambda a: isinstance(a, bpy.types.Mesh), map(lambda a: a.data, col.all_objects)):
+                map_to_do[ID] = ID.make_local()
+            remap()
+            #for obj in filter(lambda a: a.type == 'MESH':col.all_objects
 
         if ind_prefs.localize_armatures:
-            clean_remap(bpy.types.Armature)
-
-        if ind_prefs.localize_other_data:
-            other_types = (
-                bpy.types.SurfaceCurve,
-                bpy.types.Light,
-                bpy.types.Curve,
-                bpy.types.GreasePencil,
-                bpy.types.MetaBall,
-                bpy.types.TextCurve,
-                bpy.types.Volume,
-            )
-
-            clean_remap(other_types)
+            for arm in gather_armatures:
+                map_to_do[arm] = arm.make_local()
+            for ID in filter(lambda a: isinstance(a, bpy.types.Armature), map(lambda a: a.data, col.all_objects)):
+                map_to_do[ID] = ID.make_local()
+            remap()
 
         if ind_prefs.localize_materials:
-            clean_remap(bpy.types.Material)
+            for material in gather_materials:
+                map_to_do[material] = material.make_local()
+            remap()
+            materials = [material for obj in col.all_objects if hasattr(obj.data, 'materials') for material in obj.data.materials]
+            for material in materials:
+                map_to_do[material] = material.make_local()
+            remap()
 
         if ind_prefs.localize_node_groups:
-            clean_remap(bpy.types.NodeGroup)
-            clean_remap(bpy.types.GeometryNodeTree)
-            clean_remap(bpy.types.ShaderNodeTree)
+            for ng in gather_node_groups:
+                map_to_do[ng] = ng.make_local()
 
         if ind_prefs.localize_images:
-            clean_remap(bpy.types.Image)
+            for image in gather_images:
+                map_to_do[image] = image.make_local()
+
+        #for object in col.objects:
+            #if object.data == None:
+            #    continue
+            #object.override_create(remap_local_usages=True)
+            #object.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
+        
+        #for colChild in col.children_recursive:
+        #    for object in colChild.objects:
+        #        #recursive(object)
+        #        map_to_do[object] = object.make_local()
+
+        
+
+        for linked, local in list(map_to_do.items()):
+            linked.user_remap(local)
+
+        #for mesh in gather_meshes:
+        #    mesh: bpy.types.Mesh
+        #    mesh.override_create(remap_local_usages=True)
+
+
+        #for mesh in gather_meshes:
+        
+
+        #context.view_layer.update()
+
+        #for object in col.all_objects:
+        #    if object.data == None:
+        #        continue
+        #    object.data.override_create(remap_local_usages=True)
 
     if col and prefs.to_cursor:
         for object in col.all_objects:
             if object.parent: continue
             object.location = context.scene.cursor.location
 
+        '''gather_meshes_new = set()
+
+        for mesh in gather_meshes:
+            new_mesh = mesh.override_create(remap_local_usages=True)
+            #gather_meshes.remove(mesh)
+            gather_meshes_new.add(new_mesh)
+        gather_meshes = gather_meshes_new'''
+
+        '''if ind_prefs.localize_collections:
+            #recursive(col)
+            col = col.make_local()
+            for colChild in col.children_recursive:
+                #recursive(colChild)
+                colChild.make_local()
+
+        if ind_prefs.localize_objects:
+            for object in col.all_objects:
+                object.make_local()
+                #recursive(object)'''
+
+    '''if ind_prefs.localize_meshes:
+        for mesh in gather_meshes:
+            #recursive(mesh)
+            mesh.make_local()
+    #else:
+    #    mesh: Mesh
+    #    for mesh in gather_meshes:
+    #        mesh.override_create(remap_local_usages=True)
+
+    if ind_prefs.localize_materials:
+        for material in gather_materials:
+            recursive(material)
+
+    if ind_prefs.localize_node_groups:
+        for node_group in gather_node_groups:
+            recursive(node_group)
+    
+    if ind_prefs.localize_images:
+        for image in gather_images:
+            recursive(image)
+
+    if ind_prefs.localize_armatures:
+        for armature in gather_armatures:
+            recursive(armature)
+    else:
+        armature: Armature
+        for armature in gather_armatures:
+            armature.override_create(remap_local_usages=True)'''
     if prefs.execute_scripts:
-        for text in filter(lambda a: isinstance(a, bpy.types.Text), gatherings['linked']):
+        for text in gather_texts:
+            print(text)
             text.as_module()
 
 
     bpy.data.orphans_purge(False, True, True)
+    #context.scene.collection.children.link(new_col)
+    return {'FINISHED'}
+
+    if obj != None:
+        if not isinstance(To.objects[0], bpy.types.Object):
+            op.report({'ERROR'}, 'Could not link the object! Does it exist in the source file?')
+            return {'CANCELLED'}
+    if col != None:
+        if not isinstance(To.collections[0], bpy.types.Collection):
+            op.report({'ERROR'}, 'Could not link the collection! Does it exist in the source file?')
+            return {'CANCELLED'}
+        
+    reference_map = id_map_utils.get_id_reference_map()
+    # find what datablocks is being used by one datablock
+
+    referenced_by_map = bpy.data.user_map()
+    # find what datablocks is using one datablock
+    
+    #newOBJs = {*bpy.data.objects} - oldOBJs
+    newMesh = {*bpy.data.meshes} - oldMesh
+    newMats = {*bpy.data.materials} - oldMats
+    newNGs = {*bpy.data.node_groups} - oldNGs
+    newIMGs = {*bpy.data.images} - oldIMGs
+    newARMs = {*bpy.data.armatures} - oldARMs
+    newTXTs = {*bpy.data.texts} - oldTXTs
+    if prefs.execute_scripts:
+        for txt in newTXTs:
+            txt.as_module()
+
+    del oldOBJs
+    del oldMesh
+    del oldMats
+    del oldNGs
+    del oldIMGs
+    del oldARMs
+    del oldTXTs
+
+    gather_meshes = set()
+
+    if obj:
+        obj = To.objects[0]
+        if not prefs.library_overrides:
+            obj = recursive(obj)
+            if obj.parent != None:
+                recursive(obj.parent)
+        else:
+            obj = obj.override_create(remap_local_usages=True)
+            if obj.parent != None:
+                obj.parent.override_create(remap_local_usages=True)
+
+    if col:
+        col = To.collections[0]
+        context.scene.collection.children.link(col)
+        if not prefs.library_overrides:
+            col = col.make_local()
+            for colChild in col.children_recursive:
+                recursive(colChild)
+
+                for object in colChild.objects:
+                    recursive(object)
+
+            for object in col.objects:
+                recursive(object)
+
+            for object in col.all_objects:
+                if object.type != 'MESH':
+                    continue
+                gather_meshes.add(object.data)
+        
+        else:
+            new_col = col.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
+            if prefs.localize_overridden_collections:
+                new_col = new_col.make_local()
+            context.scene.collection.children.unlink(col)
+            col = new_col
+            gather_meshes = set()
+
+            for object in col.all_objects:
+                if object.type != 'MESH':
+                    continue
+                gather_meshes.add(object.data)
+
+            for mesh in gather_meshes:
+                mesh.override_create(remap_local_usages=True)
+
+            '''
+            
+            Disregard last comment. I don't know what was happening.
+            
+            '''
+
+    if not prefs.library_overrides:
+        if prefs.localize_meshes:
+            for ID in gather_meshes:
+                recursive(ID)
+        if prefs.localize_materials:
+            for ID in newMats:
+                recursive(ID)
+        if prefs.localize_node_groups:
+            for ID in newNGs:
+                recursive(ID)
+        if prefs.localize_images:
+            for ID in newIMGs:
+                recursive(ID)
+        if prefs.localize_armatures:
+            for ID in newARMs:
+                recursive(ID)
+    
+        for linked, local in list(map_to_do.items()):
+            linked.user_remap(local)
+
+    if obj:
+        object = obj
+        while object.parent != None:
+            object = object.parent
+            activeCol.objects.link(object)
+        activeCol.objects.link(obj)
+        if prefs.to_cursor:
+            object.location = context.scene.cursor.location
+
+    if col and prefs.to_cursor:
+        for object in col.all_objects:
+            if object.parent: continue
+            object.location = context.scene.cursor.location
+    bpy.data.orphans_purge()
     return {'FINISHED'}
 
 class SPAWNER_GENERIC_SPAWN_UL_List(UIList):

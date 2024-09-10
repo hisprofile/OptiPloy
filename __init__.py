@@ -16,13 +16,13 @@ from . import preferences, panel, transmitter, tx_rx
 def register():
     preferences.register()
     panel.register()
-    transmitter.register()
-    tx_rx.register()
+    #transmitter.register()
+    #tx_rx.register()
 
 def unregister():
     preferences.unregister()
     panel.unregister()
-    transmitter.unregister()
+    #transmitter.unregister()
 
 if __name__ == '__main__':
     register()
