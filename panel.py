@@ -1,14 +1,8 @@
 from . import base_package
 
 import bpy, os
-import pickle
 
-from . import transmitter
-
-from bpy.types import (UIList, Panel, Operator,
-                       Mesh, Object, Material,
-                       Armature, NodeGroup, Image,
-                       Collection, Text)
+from bpy.types import (UIList, Panel, Operator)
 
 from bpy.props import *
 
@@ -17,8 +11,6 @@ import bpy
 from bpy.types import ID
 
 from collections import defaultdict
-
-import time
 
 folder_path = os.path.dirname(__file__)
 

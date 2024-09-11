@@ -1,9 +1,7 @@
 import bpy
 from . import base_package
-from. import transmitter
-import asyncio
 
-import os, sys, uuid
+import os
 from glob import glob
 
 from bpy.props import (StringProperty, CollectionProperty,
@@ -75,7 +73,7 @@ class blends(PropertyGroup):
     objects: CollectionProperty(type=objects, name='Spawnables', description='List of spawnable items detected in this .blend file')
     collections: CollectionProperty(type=collections, name='Spawnables', description='List of spawnable items detected in this .blend file')
     filepath: StringProperty(name='Filepath', description='Path to a .blend file', options=set(), subtype='FILE_PATH', update=exists)
-    name: StringProperty(name='Name', update=sorter)
+    name: StringProperty(name='Name')#, update=sorter)
     exists: BoolProperty(default=True)
 
     override_behavior: BoolProperty(default=False, name='Override Behavior')
@@ -100,7 +98,7 @@ class folders(PropertyGroup):
     blends: CollectionProperty(type=blends, name='.blend files', description='List of .blend files under this folder.')
     blend_index: IntProperty(default=0)
     filepath: StringProperty(name='Folder Path', description='Path to this directory', subtype='DIR_PATH', update=exists)
-    name: StringProperty(name='Name', options=set(), update=sorter)
+    name: StringProperty(name='Name')#, options=set(), update=sorter)
     exists: BoolProperty(default=False)
     selected_blend: EnumProperty(items=folders_blend_CB, name='Selected .blend', description='Selected .blend file under active folder')
 
