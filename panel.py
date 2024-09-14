@@ -6,9 +6,9 @@ from bpy.types import (UIList, Panel, Operator)
 
 from bpy.props import *
 
-from typing import Dict, Set
+
 import bpy
-from bpy.types import ID
+
 
 from collections import defaultdict
 
@@ -36,52 +36,19 @@ extra_types = [
 
 # Preventing IDs from being processed if they reference an ID who has referenced the current ID
 
-def get_id_reference_map() -> Dict[ID, Set[ID]]:
-    """Return a dictionary of direct datablock references for every datablock in the blend file."""
-    inv_map = {}
-    for key, values in bpy.data.user_map().items():
-        for value in values:
-            if value == key:
-                # So an object is not considered to be referencing itself.
-                continue
-            inv_map.setdefault(value, set()).add(key)
-    return inv_map
 
-
-def recursive_get_referenced_ids(
-    ref_map: Dict[ID, Set[ID]], id: ID, referenced_ids: Set, visited: Set, level
-):
-    """Recursively populate referenced_ids with IDs referenced by id."""
-    if id in visited:
-        # Avoid infinite recursion from circular references.
-        return
-    visited.add(id)
-    for ref in ref_map.get(id, []):
-        if id in refd_by[ref]: continue
-        refd_by[id].add(ref)
-        rev_leveled_map[ref] = max(rev_leveled_map.get(ref, -1), level)
-        referenced_ids.add(ref)
-        recursive_get_referenced_ids(
-            ref_map=ref_map, id=ref, referenced_ids=referenced_ids, visited=visited, level=level+1
-        )
-
-
-def get_all_referenced_ids(id: ID, ref_map: Dict[ID, Set[ID]]) -> Set[ID]:
-    """Return a set of IDs directly or indirectly referenced by id."""
-    referenced_ids = set()
-    rev_leveled_map[id] = 0
-    recursive_get_referenced_ids(
-        ref_map=ref_map, id=id, referenced_ids=referenced_ids, visited=set(), level=0
-    )
-    return referenced_ids
 
 def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_prefs, *, obj:str=None, col:str=None):
+    from typing import Dict, Set
+    from bpy.types import ID
+
     prefs = context.preferences.addons[base_package].preferences
     props = context.scene.optiploy_props
     activeCol = context.view_layer.active_layer_collection.collection
     
     #col: bpy.types.Collection = bpy.data.collections[col]
-
+    bone_shapes = set()
+    arms = set()
     map_to_do = {}
     gatherings = {
         'override': list(),
@@ -111,6 +78,52 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
         for ID in filter(lambda a: isinstance(a, TYPE), gatherings['linked']):
             map_to_do[ID] = ID.make_local()
         remap()
+
+    def get_id_reference_map() -> Dict[ID, Set[ID]]:
+        """Return a dictionary of direct datablock references for every datablock in the blend file."""
+        inv_map = {}
+        for key, values in bpy.data.user_map().items():
+            for value in values:
+                if value == key:
+                    # So an object is not considered to be referencing itself.
+                    continue
+                inv_map.setdefault(value, set()).add(key)
+        return inv_map
+
+
+    def recursive_get_referenced_ids(
+        ref_map: Dict[ID, Set[ID]], id: ID, referenced_ids: Set, visited: Set, level
+    ):
+        """Recursively populate referenced_ids with IDs referenced by id."""
+        if id in visited:
+            # Avoid infinite recursion from circular references.
+            return
+        visited.add(id)
+
+        if isinstance(id, bpy.types.Object) and isinstance(getattr(id, 'data', None), bpy.types.Armature):
+            arms.add(id)
+            bone_shapes.update(set(bone.custom_shape for bone in id.pose.bones))
+
+        for ref in ref_map.get(id, []):
+            if (ref in bone_shapes) and (id in arms):
+                continue
+            if id in refd_by[ref]: continue
+            refd_by[id].add(ref)
+            rev_leveled_map[ref] = max(rev_leveled_map.get(ref, -1), level)
+            referenced_ids.add(ref)
+            recursive_get_referenced_ids(
+                ref_map=ref_map, id=ref, referenced_ids=referenced_ids, visited=visited, level=level+1
+            )
+
+
+    def get_all_referenced_ids(id: ID, ref_map: Dict[ID, Set[ID]]) -> Set[ID]:
+        """Return a set of IDs directly or indirectly referenced by id."""
+        referenced_ids = set()
+        rev_leveled_map[id] = 0
+        recursive_get_referenced_ids(
+            ref_map=ref_map, id=id, referenced_ids=referenced_ids, visited=set(), level=0
+        )
+        return referenced_ids
 
     # Collections and objects are overridden by default through override_hierarchy_create
     override_support = (
@@ -166,10 +179,13 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
             op.report({'ERROR'}, f'Collection "{col}" could not be found in {os.path.basename(item.filepath)}')
             return {'CANCELLED'}
         col: bpy.types.Collection = To.collections[0]
+        #arms = set(filter(lambda a: a.type == 'ARMATURE', col.all_objects))
         context.scene.collection.children.link(col)
         new_col = col.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
         context.scene.collection.children.unlink(col)
         col = new_col
+        #arms.update(set(filter(lambda a: a.type == 'ARMATURE', col.all_objects)))
+        #bone_shapes = set(bone.custom_shape for arm in arms for bone in arm.pose.bones)
         spawned = col
         
     id_ref = get_id_reference_map()
@@ -214,6 +230,27 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
         if ID.override_library.reference in gatherings['linked']:
             gatherings['linked'].remove(ID.override_library.reference)
         gatherings['override'].append(ID)
+
+    '''
+    
+    What's the reason for all this weird code?
+
+    This is the result of my desire for "data isolation." When OptiPloy used my first method of linking, spawning previously spawned collections with different settings would localize
+    the data in the previously spawned collections. That really annoyed me. Using bpy.data.temp_data() didn't help, because linking within it would break Blender, and my only real
+    solution was to have a second instance of Blender running to prepare the data for the main instance to use, which actually worked. But I didn't like it, because despite using
+    factory settings, its RAM usage would increase with every spawned item. Too bad considering how well it worked. But I *really* wanted it to all be local.
+
+    My solution? Library overrides!
+
+    Library overridden IDs float between a state of localized and linked. Technically with every "LO" ID, you *are* increasing storage usage, but not as much as you would be since it
+    still very much relies on the linked stuff. It *is* a good solution for this "data isolation" concept, because it prevents the localization of pre-existing data, but its far from
+    the best one. I have to implement checks for specific things. I don't doubt that makes people unhappy, but its not like this code is being ran 24/7. Right now, the only checks
+    being performed are for drivers between meshes and their shape keys (literally) and preventing bone shapes from being processed if they are only used by any armature. It's
+    possible I'll run into more situations that I need to counter, but it cannot be that hard to fix.
+
+    Famous last words?
+
+    '''
         
     if ind_prefs.localize_collections:
         clean_remap(bpy.types.Collection)
@@ -265,6 +302,8 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
     map_to_do.clear()
     gatherings['linked'].clear()
     gatherings['override'].clear()
+    arms.clear()
+    bone_shapes.clear()
     del sorted_refs, map_to_do, gatherings
 
     bpy.data.orphans_purge(True, True, True)
@@ -319,7 +358,6 @@ class SPAWNER_PT_folder_settings(Panel):
             'localize_node_groups',
             'localize_images',
             'localize_armatures',
-            'localize_other_data',
         ]
 
         folder = prefs.folders[props.selected_folder]
@@ -356,7 +394,6 @@ class SPAWNER_PT_blend_settings(Panel):
             'localize_node_groups',
             'localize_images',
             'localize_armatures',
-            'localize_other_data',
         ]
         row = layout.row()
         row.prop(blend, 'override_behavior')
