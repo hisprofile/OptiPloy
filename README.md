@@ -6,7 +6,7 @@ OptiPloy (optimized deployment) can be considered a better alternative to append
 (Don't have a set of rigs to test it with? Try my TF2 Buildings port! https://drive.google.com/drive/folders/11vyl_97Xy8LE-VPECfLlJ876poRZp6AT?usp=drive_link)
 
 # Here's how to set it up.
-In the preferences, you will find two sections to add .blend files. Individually or by a folder of them. Now there are two things worth noting. OptiPloy will only spawn objects or collections, *if* they have been marked as assets. And two, it will not go through sub folders to look for .blend flies of and folder you add
+In the preferences, you will find two sections to add .blend files. Individually or by a folder of them. Now there are two things worth noting. OptiPloy will only spawn objects or collections, *if* they have been marked as assets. And two, sub-folders will NOT be parsed.
 
 Once you have a .blend file prepared with a rig under a collection marked as an asset, you may now add that .blend file to OptiPloy. It will automatically be scanned for spawnable items, which you can spawn through the OptiPloy tab in the 3D Viewport.
 
