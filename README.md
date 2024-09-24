@@ -71,4 +71,4 @@ If this rig saves you a bunch of space, and time, you just might consider suppor
 https://ko-fi.com/hisanimations
 
 # Credits
-Thank you to LetUmGo ( https://www.youtube.com/@Letumgo ) for helping with the logo!
+Thank you to LetumGo ( https://www.youtube.com/@Letumgo ) for helping with the logo!
