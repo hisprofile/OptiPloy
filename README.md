@@ -16,7 +16,7 @@ Through the `bpy.data.libraries.load` feature, OptiPloy links an object/collecti
 ## Linked vs. Library Overrides vs. Localized
 When you link data from another file, you cannot edit that linked data because it is not yours. Everything about it comes from another file, therefore to make changes, you must edit in that source file.
 
-Applying Library Overrides will let you edit *some* attributes on that data, but not everything. Library overrides is like putting data in a state between linked and localized.
+Applying Library Overrides will let you edit *some* attributes on that data, but not everything. Library overrides is like putting data in a state between linked and localized. ([See Blender's explanation](https://docs.blender.org/manual/en/latest/files/linked_libraries/library_overrides.html))
 
 Localizing data will make a fully local copy of that data. Depending on what is being localized, it *can* take up more storage, but you will have no limit on what you can edit.
 
