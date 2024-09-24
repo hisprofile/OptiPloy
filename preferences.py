@@ -11,27 +11,15 @@ from bpy.types import (UIList, PropertyGroup,
                         AddonPreferences, Operator)
 
 from bpy_extras.io_utils import ImportHelper
+from .panel import SPAWNER_OT_genericText
 
-def sorter(self, context):
-    prefs = context.preferences.addons[base_package].preferences
-    indices = sorted([(i.name.lower(), i.name, n) for n, i in enumerate(prefs.blends)], key=lambda a: a[0], reverse=True)
-    if indices:
-        active = prefs.blends[prefs.blend_index].name
+no_recursion = False
 
-        for blend, b, n in indices:
-            #ind = prefs.blends.find(n)
-            prefs.blends.move(n, 0)
-
-        prefs.blend_index = prefs.blends.find(active)
-
-    indices = sorted([(i.name.lower(), i.name) for i in prefs.folders], key=lambda a: a[0], reverse=True)
-    if indices:
-        active = prefs.folders[prefs.folder_index].name
-        for folder, f in indices:
-            ind = prefs.folders.find(f)
-            prefs.folders.move(ind, 0)
-
-        prefs.folder_index = prefs.folders.find(active)
+def only(item, *argv):
+    for arg in argv:
+        if arg != item:
+            return False
+    return True
 
 def exists(self, context):
     prefs = context.preferences.addons[base_package].preferences
@@ -45,23 +33,27 @@ def blends_CB(self, context):
     prefs = context.preferences.addons[base_package].preferences
     items = []
     for n, blend in enumerate(prefs.blends):
-        items.append((blend.name, blend.name, 'This is a .blend file!', 'BLENDER', n))
+        items.append((str(n), blend.name, 'This is a .blend file!', 'BLENDER', n))
     return items
 
 def folders_CB(self, context):
     prefs = context.preferences.addons[base_package].preferences
     items = []
     for n, folder in enumerate(prefs.folders):
-        items.append((folder.name, folder.name, 'This is a folder!', 'FILE_FOLDER', n))
+        items.append((str(n), folder.name, 'This is a folder!', 'FILE_FOLDER', n))
     return items
 
 def folders_blend_CB(self, context):
     prefs = context.preferences.addons[base_package].preferences
     items = []
     folder = context.scene.optiploy_props.selected_folder
-    for n, blend in enumerate(prefs.folders[folder].blends):
-        items.append((blend.name, blend.name, 'This is a .blend file!', 'BLENDER', n))
+    for n, blend in enumerate(prefs.folders[int(folder)].blends):
+        items.append((str(n), blend.name, 'This is a .blend file!', 'BLENDER', n))
     return items
+
+def redraw(self, context: bpy.types.Context):
+    print(dir(context.area), dir(context.space_data), dir(context.window), dir(context.ui_list))
+    context.area.tag_redraw()
 
 class objects(PropertyGroup):
     name: StringProperty(default='')
@@ -77,13 +69,13 @@ class blends(PropertyGroup):
     exists: BoolProperty(default=True)
 
     override_behavior: BoolProperty(default=False, name='Override Behavior')
-    localize_collections: BoolProperty(name='Localize collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
-    localize_objects: BoolProperty(default=False, name='Localize all linked objects', options=set())
-    localize_meshes: BoolProperty(default=False, name='Localize all linked mesh data', options=set())
-    localize_materials: BoolProperty(default=False, name='Localize all linked materials', options=set())
-    localize_node_groups: BoolProperty(default=False, name='Localize all linked node groups', options=set())
-    localize_images: BoolProperty(default=False, name='Localize all linked images', options=set())
-    localize_armatures: BoolProperty(default=False, name='Localize all armatures', options=set())
+    localize_collections:   BoolProperty(name='Localize collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
+    localize_objects:       BoolProperty(default=False, name='Localize objects', options=set())
+    localize_meshes:        BoolProperty(default=False, name='Localize mesh data', options=set())
+    localize_materials:     BoolProperty(default=False, name='Localize materials', options=set())
+    localize_node_groups:   BoolProperty(default=False, name='Localize node groups', options=set())
+    localize_images:        BoolProperty(default=False, name='Localize images', options=set())
+    localize_armatures:     BoolProperty(default=False, name='Localize armatures', options=set())
 
     localize_lights:        BoolProperty(default=False, name='Localize lights', options=set())
     localize_cameras:       BoolProperty(default=False, name='Localize cameras', options=set())
@@ -104,12 +96,12 @@ class folders(PropertyGroup):
 
     override_behavior:      BoolProperty(default=False, name='Override Behavior')
     localize_collections:   BoolProperty(name='Localize collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
-    localize_objects:       BoolProperty(default=False, name='Localize all linked objects', options=set())
-    localize_meshes:        BoolProperty(default=False, name='Localize all linked mesh data', options=set())
-    localize_materials:     BoolProperty(default=False, name='Localize all linked materials', options=set())
-    localize_node_groups:   BoolProperty(default=False, name='Localize all linked node groups', options=set())
-    localize_images:        BoolProperty(default=False, name='Localize all linked images', options=set())
-    localize_armatures:     BoolProperty(default=False, name='Localize all armatures', options=set())
+    localize_objects:       BoolProperty(default=False, name='Localize objects', options=set())
+    localize_meshes:        BoolProperty(default=False, name='Localize mesh data', options=set())
+    localize_materials:     BoolProperty(default=False, name='Localize materials', options=set())
+    localize_node_groups:   BoolProperty(default=False, name='Localize node groups', options=set())
+    localize_images:        BoolProperty(default=False, name='Localize images', options=set())
+    localize_armatures:     BoolProperty(default=False, name='Localize armatures', options=set())
 
     localize_lights:        BoolProperty(default=False, name='Localize lights', options=set())
     localize_cameras:       BoolProperty(default=False, name='Localize cameras', options=set())
@@ -165,7 +157,7 @@ class FOLDERS_SPAWNER_UL_List(UIList):
         row.alignment='RIGHT'
         row.label(text=str(len(item.blends)), icon='BLENDER')
         op = row.operator('spawner.scan')
-        op.folder = prefs.folders.find(item.name)
+        op.folder = index
         op.blend = -1
 
 class SPAWNER_GENERIC_UL_List(UIList):
@@ -179,27 +171,42 @@ class SPAWNER_GENERIC_UL_List(UIList):
 class blendentriespref(AddonPreferences):
     bl_idname = base_package
 
+    #def set_blend_show(self, value):
+    #    self['blend_more_info'] = value
+
+    #def get_blend_show(self):
+    #    return self['blend_more_info'] and not self['folder_more_info']
+
+    def update_blend_show(self, context):
+        self['folder_more_info'] = False
+
+    def update_folder_show(self, context):
+        self['blend_more_info'] = False
+
     blends: CollectionProperty(type=blends)
     blend_index: IntProperty(name='Blend Entry Index', min=0, options=set())
     selected_blend: EnumProperty(items=blends_CB, options=set(), name='Selected .blend File', description='Selected .blend file')
-    blend_more_info: BoolProperty(default=False, name='Show More', description='Show more of the selected .blend file', options=set())
+    blend_more_info: BoolProperty(default=False, name='Show More', description='Show more of the selected .blend file', options=set(), update=update_blend_show)#get=get_blend_show, set=set_blend_show)
 
     folders: CollectionProperty(type=folders)
     folder_index: IntProperty(name='Folder Entry Index', min=0, options=set())
     selected_folder: EnumProperty(items=folders_CB, options=set(), name='Selected Folder', description='Selected Folder')
-    folder_more_info: BoolProperty(default=False, name='Show More', description='Show more of the selected .blend file', options=set())
-    folder_blend_more_info: BoolProperty(default=False, name='Show More', description='Show more of the selected .blend file', options=set())
+    folder_more_info: BoolProperty(default=False, name='Show More', description='Show more of the selected .blend file', options=set(), update=update_folder_show)
+    #folder_blend_more_info: BoolProperty(default=False, name='Show More', description='Show more of the selected .blend file', options=set())
+    
+    obj_index: IntProperty(default=0, options=set())#, update=redraw)
+    col_index: IntProperty(default=0, options=set())#, update=redraw)
 
     null: IntProperty(min=0, max=0)
 
     to_cursor: BoolProperty(default=True, name='Move Parents to Cursor', options=set())
 
     localize_collections:   BoolProperty(name='Localize collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
-    localize_objects:       BoolProperty(default=True, name='Localize linked objects', options=set())
-    localize_meshes:        BoolProperty(default=False, name='Localize linked mesh data', options=set())
-    localize_materials:     BoolProperty(default=False, name='Localize linked materials', options=set())
-    localize_node_groups:   BoolProperty(default=False, name='Localize linked node groups', options=set())
-    localize_images:        BoolProperty(default=False, name='Localize linked images', options=set())
+    localize_objects:       BoolProperty(default=True, name='Localize objects', options=set())
+    localize_meshes:        BoolProperty(default=False, name='Localize mesh data', options=set())
+    localize_materials:     BoolProperty(default=False, name='Localize materials', options=set())
+    localize_node_groups:   BoolProperty(default=False, name='Localize node groups', options=set())
+    localize_images:        BoolProperty(default=False, name='Localize images', options=set())
     localize_armatures:     BoolProperty(default=False, name='Localize armatures', options=set())
 
     localize_lights:        BoolProperty(default=False, name='Localize lights', options=set())
@@ -210,18 +217,20 @@ class blendentriespref(AddonPreferences):
     localize_surface_curves:BoolProperty(default=False, name='Localize surface curves', options=set())
     localize_volumes:       BoolProperty(default=False, name='Localize volumes', options=set())
     localize_grease_pencil: BoolProperty(default=False, name='Localize grease pencil', options=set())
-    
-    #library_overrides: BoolProperty(default=False, name='Make Library Overrides', description='Make objects and their data partially editable. You may still modify properties, such as shape keys',options=set())
-    
+     
     execute_scripts: BoolProperty(default=True, name='Execute Attached Scripts', options=set())
     
 
     def draw(self, context):
         layout = self.layout
+        alpha_text = '''This can only be undone through reverting to saved preferences.
+Hold SHIFT to reverse sort.'''
+        alpha_icons = 'SORTALPHA,EVENT_SHIFT'
+        alpha_size = '56,56'
 
         op = layout.row().operator('spawner.textbox', text="Assets not showing?", icon='QUESTION')
-        op.text = 'In OptiPloy, collections or objects need to be marked as "Assets" if they are to be used. If the scanning isn\'t returning any results, try marking objects or collections as assets.'
-        op.size = '56'
+        op.text = 'In OptiPloy, collections or objects need to be marked as "Assets" if they are to be used. If the scanning isn\'t returning any results, ensure objects or collections are marked as assets.'
+        op.size = '58'
         op.icons = 'ASSET_MANAGER'
         op.width=350
         layout.row().label(text='.blend entries', icon='BLENDER')
@@ -232,6 +241,28 @@ class blendentriespref(AddonPreferences):
         col.operator('spawner.add_entry', text='', icon='ADD').blends=True
         col.operator('spawner.remove_entry', text='', icon='REMOVE').blends=True
 
+        col.separator()
+
+        for offset, icon in [(-1, 'TRIA_UP'), (1, 'TRIA_DOWN')]:
+            op = col.operator('spawner.move', text='', icon=icon)
+            op.offset = offset
+            op.blend = True
+            op.folder = False
+            op.object = False
+            op.collection = False
+
+        col.separator()
+
+        op = col.operator('spawner.alpha_sort', text='', icon='SORTALPHA')
+        op.text = alpha_text
+        op.icons = alpha_icons
+        op.size = alpha_size
+        op.width=310
+        op.blend=True
+        op.folder=False
+        op.object=False
+        op.collection=False
+
         if (len(self.blends) != 0) and (self.blend_index < len(self.blends)):
             blend = self.blends[self.blend_index]
             box.row().prop(blend, 'filepath')
@@ -239,19 +270,60 @@ class blendentriespref(AddonPreferences):
             row.prop(self, 'blend_more_info', toggle=True)
             if self.blend_more_info:
 
-                box.row().label(text='Objects', icon='OBJECT_DATA')
                 objBox = box.box()
+                objBox.row().label(text='Objects', icon='OBJECT_DATA')
+                row = objBox.row()
                 if len(blend.objects) > 0:
-                    objBox.template_list('SPAWNER_GENERIC_UL_List', 'Objects', blend, 'objects', self, 'null')
+                    row.template_list('SPAWNER_GENERIC_UL_List', 'Objects', blend, 'objects', self, 'obj_index')
+                    col = row.column()
+                    for offset, icon in [(-1, 'TRIA_UP'), (1, 'TRIA_DOWN')]:
+                        op = col.operator('spawner.move', text='', icon=icon)
+                        op.offset = offset
+                        op.blend = True
+                        op.folder = False
+                        op.object = True
+                        op.collection = False
+
+                    col.separator()
+
+                    op = col.operator('spawner.alpha_sort', text='', icon='SORTALPHA')
+                    op.text = alpha_text
+                    op.icons = alpha_icons
+                    op.size = alpha_size
+                    op.width=310
+                    op.blend=True
+                    op.folder=False
+                    op.object=True
+                    op.collection=False
                 else:
-                    objBox.label(text='No objects!')
+                    row.label(text='No objects!')
                 
-                box.row().label(text='Collections', icon='OUTLINER_COLLECTION')
                 colBox = box.box()
+                colBox.row().label(text='Collections', icon='OUTLINER_COLLECTION')
+                row = colBox.row()
                 if len(blend.collections) > 0:
-                    colBox.template_list('SPAWNER_GENERIC_UL_List', 'Collections', blend, 'collections', self, 'null')
+                    row.template_list('SPAWNER_GENERIC_UL_List', 'Collections', blend, 'collections', self, 'col_index')
+                    col = row.column()
+                    for offset, icon in [(-1, 'TRIA_UP'), (1, 'TRIA_DOWN')]:
+                        op = col.operator('spawner.move', text='', icon=icon)
+                        op.offset = offset
+                        op.blend = True
+                        op.folder = False
+                        op.object = False
+                        op.collection = True
+                    col.separator()
+
+                    op = col.operator('spawner.alpha_sort', text='', icon='SORTALPHA')
+                    op.text = alpha_text
+                    op.icons = alpha_icons
+                    op.size = alpha_size
+                    op.width=310
+                    op.blend=True
+                    op.folder=False
+                    op.object=False
+                    op.collection=True
                 else:
-                    colBox.label(text='No collections!')
+                    row.label(text='No collections!')
 
         layout.row().label(text='Folder entries', icon='FILE_FOLDER')
         box = layout.box()
@@ -261,6 +333,28 @@ class blendentriespref(AddonPreferences):
         col.operator('spawner.add_entry', text='', icon='ADD').blends=False
         col.operator('spawner.remove_entry', text='', icon='REMOVE').blends=False
 
+        col.separator()
+
+        for offset, icon in [(-1, 'TRIA_UP'), (1, 'TRIA_DOWN')]:
+            op = col.operator('spawner.move', text='', icon=icon)
+            op.offset = offset
+            op.blend = False
+            op.folder = True
+            op.object = False
+            op.collection = False
+
+        col.separator()
+
+        op = col.operator('spawner.alpha_sort', text='', icon='SORTALPHA')
+        op.text = alpha_text
+        op.icons = alpha_icons
+        op.size = alpha_size
+        op.width=310
+        op.blend=False
+        op.folder=True
+        op.object=False
+        op.collection=False
+
         if (len(self.folders) != 0) and (self.folder_index < len(self.folders)):
             folder = self.folders[self.folder_index]
             box.row().prop(folder, 'filepath')
@@ -269,19 +363,84 @@ class blendentriespref(AddonPreferences):
             if self.folder_more_info and len(folder.blends) > 0:
                 blend = folder.blends[max(min(folder.blend_index, len(folder.blends)-1), 0)]
                 row = box.row()
+                box = row.box()
+                box.row().label(text='.blends', icon='BLENDER')
+                row = box.row()
                 row.template_list('BLENDS_SPAWNER_UL_List', '.blend files', folder, 'blends', folder, 'blend_index')
-                box.row().label(text='Objects', icon='OBJECT_DATA')
+                col = row.column()
+                for offset, icon in [(-1, 'TRIA_UP'), (1, 'TRIA_DOWN')]:
+                    op = col.operator('spawner.move', text='', icon=icon)
+                    op.offset = offset
+                    op.blend = True
+                    op.folder = True
+                    op.object = False
+                    op.collection = False
+                col.separator()
+
+                op = col.operator('spawner.alpha_sort', text='', icon='SORTALPHA')
+                op.text = alpha_text
+                op.icons = alpha_icons
+                op.size = alpha_size
+                op.width=310
+                op.blend=True
+                op.folder=True
+                op.object=False
+                op.collection=False
+
                 objBox = box.box()
+                objBox.row().label(text='Objects', icon='OBJECT_DATA')
+                row = objBox.row()
                 if len(blend.objects) > 0:
-                    objBox.template_list('SPAWNER_GENERIC_UL_List', 'Objects', blend, 'objects', self, 'null')
+                    row.template_list('SPAWNER_GENERIC_UL_List', 'Objects', blend, 'objects', self, 'obj_index')
+                    col = row.column()
+                    for offset, icon in [(-1, 'TRIA_UP'), (1, 'TRIA_DOWN')]:
+                        op = col.operator('spawner.move', text='', icon=icon)
+                        op.offset = offset
+                        op.blend = True
+                        op.folder = True
+                        op.object = True
+                        op.collection = False
+                    col.separator()
+
+                    op = col.operator('spawner.alpha_sort', text='', icon='SORTALPHA')
+                    op.text = alpha_text
+                    op.icons = alpha_icons
+                    op.size = alpha_size
+                    op.width=310
+                    op.blend=True
+                    op.folder=True
+                    op.object=True
+                    op.collection=False
                 else:
-                    objBox.label(text='No objects!')
-                box.row().label(text='Collections', icon='OUTLINER_COLLECTION')
+                    row.label(text='No objects!')
+                
                 colBox = box.box()
-                if len(blend.collections) > 0:    
-                    colBox.template_list('SPAWNER_GENERIC_UL_List', 'Collections', blend, 'collections', self, 'null')
+                colBox.row().label(text='Collections', icon='OUTLINER_COLLECTION')
+                row = colBox.row()
+                if len(blend.collections) > 0:
+                    row.template_list('SPAWNER_GENERIC_UL_List', 'Collections', blend, 'collections', self, 'col_index')
+                    col = row.column()
+                    for offset, icon in [(-1, 'TRIA_UP'), (1, 'TRIA_DOWN')]:
+                        op = col.operator('spawner.move', text='', icon=icon)
+                        op.offset = offset
+                        op.blend = True
+                        op.folder = True
+                        op.object = False
+                        op.collection = True
+
+                    col.separator()
+
+                    op = col.operator('spawner.alpha_sort', text='', icon='SORTALPHA')
+                    op.text = alpha_text
+                    op.icons = alpha_icons
+                    op.size = alpha_size
+                    op.width=310
+                    op.blend=True
+                    op.folder=True
+                    op.object=False
+                    op.collection=True
                 else:
-                    colBox.label(text='No collections!')
+                    row.label(text='No collections!')
         
 class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
     bl_idname = 'spawner.add_entry'
@@ -296,13 +455,15 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
     def execute(self, context):
         prefs = context.preferences.addons[base_package].preferences
         if self.blends:
+            if not os.path.exists(self.filepath):
+                self.report({'ERROR'}, f'{self.filepath} does not exist!')
+                return {'CANCELLED'}
             new_entry = prefs.blends.add()
             new_entry.filepath = self.filepath
             new_entry.filepath = bpy.path.abspath(new_entry.filepath) # just in case
             name = os.path.basename(self.filepath).rsplit('.', maxsplit=1)[0]
             new_entry.name = name
-            prefs.blend_index = prefs.blends.find(name)
-            bpy.ops.spawner.scan(blend=prefs.blend_index, folder=-1, scan_blend=False, scan_folder=False)
+            scan(self, context, prefs.blends[-1])
             
         else:
             new_entry = prefs.folders.add()
@@ -310,9 +471,8 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
             new_entry.filepath = bpy.path.abspath(new_entry.filepath) # just in case
             name = os.path.basename(self.directory.rstrip("\\/"))
             new_entry.name = name
-            prefs.folder_index = prefs.folders.find(name)
-            bpy.ops.spawner.scan(blend=-1, folder=prefs.folder_index, scan_blend=False, scan_folder=False)
-
+            scan(self, context, prefs.folders[-1])
+        context.window_manager.progress_end()
         return {'FINISHED'}
     
 class SPAWNER_OT_Remove_Entry(Operator):
@@ -338,39 +498,67 @@ class SPAWNER_OT_Remove_Entry(Operator):
         return context.window_manager.invoke_confirm(self, event)
     
 
-def scan(item, skip = False) -> list:
+def scan(op: bpy.types.Operator, context: bpy.types.Context, item, skip = False):
+    wm = context.window_manager
+    wm.progress_begin(0, 9999)
+    wm.progress_update(0)
+    failed = 0
+
     itemType = item.bl_rna.identifier
     if itemType == 'blends':
         if (len(item.objects) + len(item.collections) != 0) and skip:
             return
+        wm.progress_update(1)
+        if not os.path.exists(item.filepath):
+            op.report({'ERROR'}, f'{item.filepath} does not exist!')
+            return {'CANCELLED'}
         print(f'Opening {item.filepath}...')
-        with bpy.data.libraries.load(item.filepath, assets_only=True) as (From, To):
-            pass
+        try:
+            with bpy.data.libraries.load(item.filepath, assets_only=True) as (From, To):
+                pass
+        except:
+            op.report({'ERROR'}, f'Could not open {item.filepath}! Is it corrupt?')
+            return {'CANCELLED'}
         print(f'Opened!')
-        print(f'Found {len(From.objects)} object(s)')
         item.objects.clear()
+        item.collections.clear()
+        if len(From.objects) + len(From.collections) == 0:
+            op.report({'WARNING'}, f'{item.filepath} does not have any objects or collections marked as assets!')
+            return {'FINISHED'}
+        wm.progress_update(2)
+        print(f'Found {len(From.objects)} object(s)')
         for obj in sorted(From.objects):
             new = item.objects.add()
             new.name = obj
+
+        wm.progress_update(3)
         print(f'Found {len(From.collections)} collection(s)')
-        item.collections.clear()
         for col in sorted(From.collections):
             new = item.collections.add()
             new.name = col
         del From, To
+        return {'FINISHED'}
     
     if itemType == 'folders':
         blends = glob('*.blend', root_dir=item.filepath)
         if not skip:
             item.blends.clear()
-        for blend in blends:
+        wm.progress_update(1)
+        for n, blend in enumerate(blends):
             if (item.get(blend) != None) and skip: continue
             blend_path = os.path.join(item.filepath, blend)
             if not os.path.exists(blend_path): continue
+            wm.progress_update(n*10)
             print(f'Opening {blend_path}...')
-            with bpy.data.libraries.load(blend_path, assets_only=True) as (From, To):
-                pass
+            try:
+                with bpy.data.libraries.load(blend_path, assets_only=True) as (From, To):
+                    pass
+            except:
+                op.report({'ERROR'}, f'Could not open {blend_path}! Is it corrupt?')
+                failed += 1
             if len(From.objects) + len(From.collections) == 0:
+                op.report({'WARNING'}, f'{blend_path} does not have any objects or collections marked as assets!')
+                failed += 1
                 continue
             print(f'Opened!')
             print(f'Found {len(From.objects)} object(s)')
@@ -378,14 +566,17 @@ def scan(item, skip = False) -> list:
             newBlend = item.blends.add()
             newBlend.name = blend
             newBlend.filepath = blend_path
-
+            wm.progress_update(n*10+1)
             for obj in sorted(From.objects):
                 new = newBlend.objects.add()
                 new.name = obj
+            wm.progress_update(n*10+2)
             for col in sorted(From.collections):
                 new = newBlend.collections.add()
                 new.name = col
-            
+        if failed:
+            op.report({'WARNING'}, f'{failed} error(s) occured. Read INFO to learn more')
+        return {'FINISHED'}
 
 class SPAWNER_OT_SCAN(Operator):
     bl_idname = 'spawner.scan'
@@ -393,43 +584,193 @@ class SPAWNER_OT_SCAN(Operator):
     bl_description = 'Combs through .blend files to look for spawnable objects or collections'
 
     blend: IntProperty(name='.blend file', default=-1)
-    scan_blend: BoolProperty(default=False, name='Scan .blend Files', description='Comb through all the .blend entries to prep them to spawn from')
     folder: IntProperty(name='Folder', default=-1)
-    scan_folder: BoolProperty(default=False, name='Scan Folders', description='Comb through all the folder entries to prep them to spawn from')
-    skip_scanned: BoolProperty(default=True, name='Skip Scanned', description='Skips .blend files that were already scanned, leaving to only scan the new ones')
 
     def execute(self, context):
         prefs = context.preferences.addons[base_package].preferences
         blend = self.blend
-        sBlend = self.scan_blend
         folder = self.folder
-        sFolder = self.scan_folder
-        skip = self.skip_scanned
 
-        print(folder, blend)
-
-        if sBlend:
-            for blend in prefs.blends:
-                scan(blend, skip)
-            return {'FINISHED'}
-        if sFolder:
-            for folder in prefs.folders:
-                scan(folder, skip)
-            return {'FINISHED'}
         if blend != -1 and folder == -1:
             blend = prefs.blends[blend]
-            scan(blend, False)
-            return {'FINISHED'}
+            return_val = scan(self, context, blend, False)
+            context.window_manager.progress_end()
+            return return_val
         
         if folder != -1 and blend == -1:
             folder = prefs.folders[folder]
-            scan(folder)
-            return {'FINISHED'}
+            return_val = scan(self, context, folder)
+            context.window_manager.progress_end()
+            return return_val
         
         if not -1 in {folder, blend}:
-            scan(prefs.folders[folder].blends[blend])
-            return {'FINISHED'}
+            blend = prefs.folders[folder].blends[blend]
+            return_val = scan(self, context, blend)
+            context.window_manager.progress_end()
+            return return_val
 
+        return {'FINISHED'}
+    
+class SPAWNER_OT_ALPHA_SORT(SPAWNER_OT_genericText):
+    bl_idname = 'spawner.alpha_sort'
+    bl_label = 'Sort by Alphabet'
+    bl_description = 'Hold SHIFT to sort backwards'
+
+    blend:      BoolProperty(default=False)
+    folder:     BoolProperty(default=False)
+    object:     BoolProperty(default=False)
+    collection: BoolProperty(default=False)
+
+    _shift = None
+
+    def invoke_extra(self, context, event):
+        self._shift = event.shift
+        #return self.execute(context)
+    
+    def execute(self, context):
+        prefs = context.preferences.addons[base_package].preferences
+
+        B = self.blend
+        F = self.folder
+        O = self.object
+        C = self.collection
+
+        if B == True and only(False, F, O, C):
+            item = prefs.blends
+        
+        if F == True and only(False, B, O, C):
+            item = prefs.folders
+        
+        if only(True, B, F) and only(False, O, C):
+            folder = prefs.folders[prefs.folder_index]
+            item = folder.blends
+        
+        if F == False:
+            blend = prefs.blends[prefs.blend_index]
+        else:
+            folder = prefs.folders[prefs.folder_index]
+            blend = folder.blends[folder.blend_index]
+
+        if O == True:
+            item = blend.objects
+        
+        if C == True:
+            item = blend.collections
+
+        ln = enumerate(item)
+
+        rev = sorted(ln, key=lambda a: a[1].name.casefold())
+        if not self._shift:
+            rev = reversed(rev)
+        rev = list(map(lambda a: a[0], rev))
+
+        for i in rev:
+            item.move(i, 0)
+            for n, _ in enumerate(rev):
+                val = rev[n]
+                if val < i:
+                    rev[n] += 1
+
+        return {'FINISHED'}
+    
+class SPAWNER_OT_MOVE(Operator):
+    bl_idname = 'spawner.move'
+    bl_label = 'Move'
+    bl_description = 'Hold SHIFT to move an item to the top or bottom'
+
+    offset:     IntProperty(default=0)
+    blend:      BoolProperty(default=False)
+    folder:     BoolProperty(default=False)
+    object:     BoolProperty(default=False)
+    collection: BoolProperty(default=False)
+    _shift = None
+
+    def invoke(self, context, event):
+        self._shift = event.shift
+        return self.execute(context)
+
+    def execute(self, context):
+        prefs = context.preferences.addons[base_package].preferences
+
+        B = self.blend
+        F = self.folder
+        O = self.object
+        C = self.collection
+        offset = self.offset
+
+        if B == True and only(False, F, O, C):
+            item = prefs.blends
+            index = prefs.blend_index
+            maxlen = len(item) - 1
+            if self._shift:
+                offset = 0 if (offset < 0) else maxlen
+            else:
+                offset = index + offset
+            offset = min(max(offset, 0), maxlen)
+            item.move(index, offset)
+            prefs.blend_index = offset
+            return {'FINISHED'}
+        
+        if F == True and only(False, B, O, C):
+            item = prefs.folders
+            index = prefs.folder_index
+            maxlen = len(item) - 1
+            if self._shift:
+                offset = 0 if (offset < 0) else maxlen
+            else:
+                offset = index + offset
+            offset = min(max(offset, 0), maxlen)
+            item.move(index, offset)
+            prefs.folder_index = offset
+            return {'FINISHED'}
+        
+        if only(True, B, F) and only(False, O, C):
+            folder = prefs.folders[prefs.folder_index]
+            item = folder.blends
+            index = folder.blend_index
+            maxlen = len(item) - 1
+            if self._shift:
+                offset = 0 if (offset < 0) else maxlen
+            else:
+                offset = index + offset
+            offset = min(max(offset, 0), maxlen)
+            item.move(index, offset)
+            folder.blend_index = offset
+            return {'FINISHED'}
+        
+        if F == False:
+            blend = prefs.blends[prefs.blend_index]
+        else:
+            folder = prefs.folders[prefs.folder_index]
+            blend = folder.blends[folder.blend_index]
+
+
+        if O == True:
+            item = blend.objects
+            index = prefs.obj_index
+            maxlen = len(item) - 1
+            if self._shift:
+                offset = 0 if (offset < 0) else maxlen
+            else:
+                offset = index + offset
+            offset = min(max(offset, 0), maxlen)
+            item.move(index, offset)
+            prefs.obj_index = offset
+            return {'FINISHED'}
+        
+        if C == True:
+            item = blend.collections
+            index = prefs.col_index
+            maxlen = len(item) - 1
+            if self._shift:
+                offset = 0 if (offset < 0) else maxlen
+            else:
+                offset = index + offset
+            offset = min(max(offset, 0), maxlen)
+            item.move(index, offset)
+            prefs.col_index = offset
+            return {'FINISHED'}
+        
         return {'FINISHED'}
     
 class SPAWNER_OT_CONTEXT(Operator):
@@ -437,24 +778,7 @@ class SPAWNER_OT_CONTEXT(Operator):
     bl_label = 'context'
 
     def execute(self, context):
-        #return {'FINISHED'}
         print(context.property)
-        #transmitter.put_to_queue(str(random.random()))
-        #loop = asyncio.new_event_loop()
-        #asyncio.set_event_loop(loop)
-        #asyncio.run(transmitter.write_to_this_hoe(str(random.random())))
-        #transmitter.client.write('hello!\n'.encode())
-        #transmitter.write('hello!')
-        #print(dir(context.ui_list))
-        #print('\n'.join(dir(context)))
-        #print(context.region)
-        #print(context.region_data)
-        #print(context)
-        #print(context.property)
-        #print(context.ui_list)
-        #print(context.space_data)
-        #print(context.property.index())
-        #print(dir(context.property))
         return {'FINISHED'}
 
 class spawner_props(PropertyGroup):
@@ -481,7 +805,8 @@ classes = [
     SPAWNER_OT_Add_Entry,
     SPAWNER_OT_Remove_Entry,
     SPAWNER_OT_SCAN,
-    SPAWNER_OT_CONTEXT
+    SPAWNER_OT_ALPHA_SORT,
+    SPAWNER_OT_MOVE
 ]
 
 def register():

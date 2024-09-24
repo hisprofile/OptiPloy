@@ -2,13 +2,9 @@ from . import base_package
 
 import bpy, os
 
-from bpy.types import (UIList, Panel, Operator)
+from bpy.types import (UIList, Panel, Operator, Menu)
 
 from bpy.props import *
-
-
-import bpy
-
 
 from collections import defaultdict
 
@@ -17,6 +13,16 @@ folder_path = os.path.dirname(__file__)
 rev_leveled_map = dict()
 
 refd_by = defaultdict(set)
+
+options = [
+    'localize_collections',
+    'localize_objects',
+    'localize_meshes',
+    'localize_materials',
+    'localize_node_groups',
+    'localize_images',
+    'localize_armatures',
+]
 
 extra_types = [
     'localize_lights',        
@@ -28,15 +34,6 @@ extra_types = [
     'localize_volumes',       
     'localize_grease_pencil', 
 ]
-
-# Need local versions of bpy_extras.id_map_utils to modify how I see fit.
-# Changes include:
-
-# Finding at what level IDs are referenced
-
-# Preventing IDs from being processed if they reference an ID who has referenced the current ID
-
-
 
 def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_prefs, *, obj:str=None, col:str=None):
     from typing import Dict, Set
@@ -107,7 +104,9 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
         for ref in ref_map.get(id, []):
             if (ref in bone_shapes) and (id in arms):
                 continue
-            if id in refd_by[ref]: continue
+            if id in refd_by[ref]:
+                # if the current ID was already referenced by its reference, then don't process it.
+                continue
             refd_by[id].add(ref)
             rev_leveled_map[ref] = max(rev_leveled_map.get(ref, -1), level)
             referenced_ids.add(ref)
@@ -124,6 +123,13 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
             ref_map=ref_map, id=id, referenced_ids=referenced_ids, visited=set(), level=0
         )
         return referenced_ids
+    
+    # Need local versions of bpy_extras.id_map_utils to modify how I see fit.
+    # Changes include:
+
+    # Finding at what level IDs are referenced
+
+    # Preventing IDs from being processed if they reference an ID who has referenced the current ID
 
     # Collections and objects are overridden by default through override_hierarchy_create
     override_support = (
@@ -160,6 +166,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
                 To.collections = [col]
     except:
         op.report({'ERROR'}, f'The .blend you are trying to open is corrupt!')
+        return {'CANCELLED'}
 
     if obj:
         if To.objects[0] == None:
@@ -179,13 +186,10 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
             op.report({'ERROR'}, f'Collection "{col}" could not be found in {os.path.basename(item.filepath)}')
             return {'CANCELLED'}
         col: bpy.types.Collection = To.collections[0]
-        #arms = set(filter(lambda a: a.type == 'ARMATURE', col.all_objects))
         context.scene.collection.children.link(col)
         new_col = col.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
         context.scene.collection.children.unlink(col)
         col = new_col
-        #arms.update(set(filter(lambda a: a.type == 'ARMATURE', col.all_objects)))
-        #bone_shapes = set(bone.custom_shape for arm in arms for bone in arm.pose.bones)
         spawned = col
         
     id_ref = get_id_reference_map()
@@ -291,6 +295,12 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
             if object.parent: continue
             object.location = context.scene.cursor.location
 
+    if obj and prefs.to_cursor:
+        top = spawned
+        while top.parent != None:
+            top = top.parent
+        top.location = context.scene.cursor.location
+
     context.scene['new_spawn'] = spawned # assign the newly spawned item to a globally accessible variable, giving developers the opportunity to further modify data in the scripts execution stage
 
     if prefs.execute_scripts:
@@ -306,12 +316,12 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
     bone_shapes.clear()
     del sorted_refs, map_to_do, gatherings
 
-    bpy.data.orphans_purge(True, True, True)
+    bpy.data.orphans_purge(True, False, True)
     return {'FINISHED'}
 
 class SPAWNER_GENERIC_SPAWN_UL_List(UIList):
     def draw_item(self, context,
-            layout, data,
+            layout: bpy.types.UILayout, data,
             item, icon,
             active_data, active_propname,
             index):
@@ -324,15 +334,29 @@ class SPAWNER_GENERIC_SPAWN_UL_List(UIList):
         row.label(text=item.name, icon=Icon)
         row = row.row()
         row.alignment='RIGHT'
+        if Type == 'OBJECT':
+            if index != prefs.obj_index:
+                row.label(text='Spawn')
+                row.separator()
+                row.enabled = False
+                return
+            
+        if Type == 'COLLECTION':
+            if index != prefs.col_index:
+                row.label(text='Spawn')
+                row.separator()
+                row.enabled = False
+                return
+            
         op = row.operator('spawner.spawner')
-
+        op.activate=True
         if props.view == 'BLENDS':
-            op.blend = props.selected_blend
-            op.folder = ''
+            op.blend = int(props.selected_blend)
+            op.folder = -1
         if props.view == 'FOLDERS':
-            folder = prefs.folders[props.selected_folder]
-            op.folder = props.selected_folder
-            op.blend = folder.selected_blend
+            folder = prefs.folders[int(props.selected_folder)]
+            op.folder = int(props.selected_folder)
+            op.blend = int(folder.selected_blend)
         if Type == 'OBJECT':
             op.object = item.name
             op.collection = ''
@@ -343,24 +367,17 @@ class SPAWNER_GENERIC_SPAWN_UL_List(UIList):
 class SPAWNER_PT_folder_settings(Panel):
     bl_label = 'Settings'
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
+    bl_region_type = 'WINDOW'
+
+    bl_options = {'INSTANCED'}
 
     def draw(self, context):
         prefs = context.preferences.addons[base_package].preferences
         props = context.scene.optiploy_props
         layout = self.layout
         layout.label(text='Folder Settings')
-        options = [
-            'localize_collections',
-            'localize_objects',
-            'localize_meshes',
-            'localize_materials',
-            'localize_node_groups',
-            'localize_images',
-            'localize_armatures',
-        ]
 
-        folder = prefs.folders[props.selected_folder]
+        folder = prefs.folders[int(props.selected_folder)]
         layout.prop(folder, 'override_behavior')
         box = layout.box()
         box.enabled = folder.override_behavior
@@ -373,7 +390,9 @@ class SPAWNER_PT_folder_settings(Panel):
 class SPAWNER_PT_blend_settings(Panel):
     bl_label = 'Settings'
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
+    bl_region_type = 'WINDOW'
+
+    bl_options = {'INSTANCED'}
 
     def draw(self, context):
         prefs = context.preferences.addons[base_package].preferences
@@ -381,20 +400,11 @@ class SPAWNER_PT_blend_settings(Panel):
         layout = self.layout
         folder = None
         if props.view == 'BLENDS':
-            blend = prefs.blends[props.selected_blend]
+            blend = prefs.blends[int(props.selected_blend)]
         else:
-            folder = prefs.folders[props.selected_folder]
-            blend = folder.blends[folder.selected_blend]
+            folder = prefs.folders[int(props.selected_folder)]
+            blend = folder.blends[int(folder.selected_blend)]
         layout.label(text='Blend Settings')
-        options = [
-            'localize_collections',
-            'localize_objects',
-            'localize_meshes',
-            'localize_materials',
-            'localize_node_groups',
-            'localize_images',
-            'localize_armatures',
-        ]
         row = layout.row()
         row.prop(blend, 'override_behavior')
         #row.enabled = getattr(folder, 'override_behavior', True)
@@ -408,8 +418,10 @@ class SPAWNER_PT_blend_settings(Panel):
 
 class SPAWNER_PT_extra_settings(Panel):
     bl_label = 'Extra Localization Options'
-    bl_space_type='VIEW_3D'
-    bl_region_type='UI'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'WINDOW'
+
+    bl_options = {'INSTANCED'}
     
     def draw(self, context):
         prefs = context.preferences.addons[base_package].preferences
@@ -432,7 +444,6 @@ class SPAWNER_PT_panel(Panel):
         props = context.scene.optiploy_props
         layout = self.layout
         box = layout.box()
-        
         row = box.row()
         row.label(text='View Mode')
         row.alignment = 'RIGHT'
@@ -449,7 +460,7 @@ class SPAWNER_PT_panel(Panel):
             row = row.row()
             row.prop(props, 'selected_blend', text='')
             row.popover('SPAWNER_PT_blend_settings', text='', icon='SETTINGS')
-            blend = prefs.blends[props.selected_blend]
+            blend = prefs.blends[int(props.selected_blend)]
         
         if props.view == 'FOLDERS':
             if not len(prefs.folders):
@@ -460,8 +471,7 @@ class SPAWNER_PT_panel(Panel):
             row.label(text='', icon='FILE_FOLDER')
             row.prop(props, 'selected_folder', text='')
             row.popover('SPAWNER_PT_folder_settings', text='', icon='SETTINGS')
-            folder = prefs.folders[props.selected_folder]
-            data = folder
+            folder = prefs.folders[int(props.selected_folder)]
             if not len(folder.blends):
                 layout.row().label(text='This folder has no .blend files marked! Has it been scanned?')
                 return None
@@ -470,7 +480,7 @@ class SPAWNER_PT_panel(Panel):
             row = row.row()
             row.prop(folder, 'selected_blend', text='')
             row.popover('SPAWNER_PT_blend_settings', text='', icon='SETTINGS')
-            blend = folder.blends[data.selected_blend]
+            blend = folder.blends[int(folder.selected_blend)]
         
         if props.view != 'TOOLS':
             box = layout.box()
@@ -478,20 +488,42 @@ class SPAWNER_PT_panel(Panel):
                 box.row().label(text="Nothing in this file detected! Mark items as assets!")
                 return
             objBox = box.box()
-            objBox.row().label(text='Objects', icon='OBJECT_DATA')
+            row = objBox.row()
+            row.label(text='Objects', icon='OBJECT_DATA')
+            op = row.operator('spawner.textbox', icon='QUESTION', text='')
             if len(blend.objects):
                 objBox.row().template_list('SPAWNER_GENERIC_SPAWN_UL_List', 'Items',
-                                        blend, 'objects', prefs, 'null')
+                                        blend, 'objects', prefs, 'obj_index')
+                op.text = '''Here are the objects you can spawn!
+To spawn an item, it has to be the active item. This serves as a way of confirming.'''
+                op.icons = 'OBJECT_DATA,CHECKMARK'
+                op.size='56,56'
+                op.width=350
             else:
                 objBox.row().label(text='No objects added!')
+                op.text = '''The selected .blend file has no objects marked as assets!'''
+                op.icons = 'ERROR'
+                op.size='56'
+                op.width=350
             
             colBox = box.box()
-            colBox.row().label(text='Collections', icon='OUTLINER_COLLECTION')
+            row = colBox.row()
+            row.label(text='Collections', icon='OUTLINER_COLLECTION')
+            op = row.operator('spawner.textbox', icon='QUESTION', text='')
             if len(blend.collections):
                 colBox.row().template_list('SPAWNER_GENERIC_SPAWN_UL_List', 'Collections',
-                                           blend, 'collections', prefs, 'null')
+                                           blend, 'collections', prefs, 'col_index')
+                op.text = '''Here are the collections you can spawn!
+To spawn an item, it has to be the active item. This serves as a way of confirming.'''
+                op.icons = 'OUTLINER_COLLECTION,CHECKMARK'
+                op.size='56,56'
+                op.width=350
             else:
                 colBox.row().label(text='No collections added!')
+                op.text = '''The selected .blend file has no collections marked as assets!'''
+                op.icons = 'ERROR'
+                op.size='56'
+                op.width=350
 
         if props.view == 'TOOLS':
             layout.label(text='Post-Processing')
@@ -500,7 +532,6 @@ class SPAWNER_PT_panel(Panel):
             box.prop(prefs, 'execute_scripts')
             layout.label(text='Behavior')
             box = layout.box()
-            #box.enabled = 1 - prefs.library_overrides
             box.prop(prefs, 'localize_collections')
             box.prop(prefs, 'localize_objects')
             box.prop(prefs, 'localize_meshes')
@@ -528,19 +559,23 @@ class SPAWNER_OT_SPAWNER(Operator):
         options=set()
     )
 
-    blend: StringProperty(default='')
-    folder: StringProperty(default='')
+    blend:  IntProperty(default=-1)
+    folder: IntProperty(default=-1)
     object: StringProperty(default='')
     collection: StringProperty(default='')
+    activate: BoolProperty()
+
+    index: IntProperty()
 
     def execute(self, context):
+        if not self.activate: return {'CANCELLED'}
         prefs = context.preferences.addons[base_package].preferences
         blend = self.blend
         folder = self.folder
         obj = self.object
         col = self.collection
 
-        if folder and blend:
+        if (folder != -1) and (blend != -1):
             folder = prefs.folders[folder]
             if folder.override_behavior:
                 prefs = folder
@@ -548,7 +583,7 @@ class SPAWNER_OT_SPAWNER(Operator):
             if entry.override_behavior:
                 prefs = entry
 
-        if blend and not folder:
+        if (blend != -1) and (folder == -1):
             entry = prefs.blends[blend]
             if entry.override_behavior:
                 prefs = entry
@@ -558,6 +593,9 @@ class SPAWNER_OT_SPAWNER(Operator):
         
         if col:
             return load_data(self, context, entry, prefs, col=col)
+        
+        self.report({'WARNING'}, 'What?')
+        return {'CANCELLED'}
 
 class SPAWNER_OBJECT_UL_List(UIList):
     def draw_item(self, context,
@@ -604,10 +642,16 @@ class SPAWNER_OT_genericText(bpy.types.Operator):
     url: StringProperty(default='')
 
     def invoke(self, context, event):
+        if not getattr(self, 'prompt', True):
+            return self.execute(context)
         if event.shift and self.url != '':
             bpy.ops.wm.url_open(url=self.url)
             return self.execute(context)
+        self.invoke_extra(context, event)
         return context.window_manager.invoke_props_dialog(self, width=self.width)
+    
+    def invoke_extra(self, context, event):
+        pass
     
     def draw(self, context):
         sentences = self.text.split('\n')
@@ -615,6 +659,10 @@ class SPAWNER_OT_genericText(bpy.types.Operator):
         sizes = self.size.split(',')
         for sentence, icon, size in zip(sentences, icons, sizes):
             textBox(self.layout, sentence, icon, int(size))
+        self.draw_extra(context)
+
+    def draw_extra(self, context):
+        pass
 
     def execute(self, context):
         return {'FINISHED'}
@@ -625,9 +673,9 @@ classes = [
     SPAWNER_GENERIC_SPAWN_UL_List,
     SPAWNER_OT_SPAWNER,
     SPAWNER_OT_genericText,
+    SPAWNER_PT_extra_settings,
     SPAWNER_PT_folder_settings,
     SPAWNER_PT_blend_settings,
-    SPAWNER_PT_extra_settings,
 ]
 
 def register():
