@@ -3,16 +3,10 @@ from . import base_package
 import bpy, os
 
 from bpy.types import (UIList, Panel, Operator, Menu)
-
 from bpy.props import *
-
 from collections import defaultdict
 
 folder_path = os.path.dirname(__file__)
-
-rev_leveled_map = dict()
-
-refd_by = defaultdict(set)
 
 options = [
     'localize_collections',
@@ -35,13 +29,20 @@ extra_types = [
     'localize_grease_pencil', 
 ]
 
-def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_prefs, *, obj:str=None, col:str=None):
+def only(item, *argv):
+    for arg in argv:
+        if arg != item:
+            return False
+    return True
+
+def load_data(op: bpy.types.Operator, context: bpy.types.Context, *, post_process=False, ind_prefs=None, obj:bpy.types.Object=None, col:bpy.types.Collection=None):
     from typing import Dict, Set
     from bpy.types import ID
 
     prefs = context.preferences.addons[base_package].preferences
     props = context.scene.optiploy_props
     activeCol = context.view_layer.active_layer_collection.collection
+    view_layer = context.view_layer
     
     #col: bpy.types.Collection = bpy.data.collections[col]
     bone_shapes = set()
@@ -51,6 +52,8 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
         'override': list(),
         'linked': list()
     }
+    rev_leveled_map = dict()
+    refd_by = defaultdict(set)
 
     def recursive(d_block):
         user_map = bpy.data.user_map(subset=[d_block])
@@ -152,43 +155,78 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
         # i think it actually just makes a copy of the image. bad for optimization
 
     )
-
-    if not os.path.exists(item.filepath):
-        op.report({'ERROR'}, f"{item.filepath} doesn't exist!")
-        op.report({'ERROR'}, "The .blend file no longer exists!")
-        return {'CANCELLED'}
-    
-    try:
-        with bpy.data.libraries.load(item.filepath, link=True, relative=True) as (From, To):
-            if obj:
-                To.objects = [obj]
-            if col:
-                To.collections = [col]
-    except:
-        op.report({'ERROR'}, f'The .blend you are trying to open is corrupt!')
-        return {'CANCELLED'}
-
-    if obj:
-        if To.objects[0] == None:
-            op.report({'ERROR'}, f'Object "{obj}" could not be found in {os.path.basename(item.filepath)}')
+    '''
+    if item != None:
+        if not os.path.exists(item.filepath):
+            op.report({'ERROR'}, f"{item.filepath} doesn't exist!")
+            op.report({'ERROR'}, "The .blend file no longer exists!")
             return {'CANCELLED'}
-        obj: bpy.types.Object = To.objects[0]
-        activeCol.objects.link(obj)
-        new_obj = obj.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
-        activeCol.objects.unlink(obj)
-        obj = new_obj
-        if not obj in set(activeCol.objects):
+        
+        try:
+            with bpy.data.libraries.load(item.filepath, link=True, relative=True) as (From, To):
+                if obj:
+                    To.objects = [obj]
+                if col:
+                    To.collections = [col]
+        except:
+            op.report({'ERROR'}, f'The .blend you are trying to open is corrupt!')
+            return {'CANCELLED'}
+    
+    else:
+        if blend_obj:
+            conditions_for_instance = {
+                blend_obj.type == 'EMPTY', # if object is an empty
+                blend_obj.instance_type == 'COLLECTION', # if the empty has its instance type set to collection
+                getattr(blend_obj.instance_collection, 'library', None) != None, # and the instanced collection has linked library data
+            }
+            conditions_for_object = {
+                blend_obj.type == 'OBJECT',
+                blend_obj.library != None,
+            }
+            if not False in conditions_for_instance:
+                col = blend_obj.instance_collection
+            elif not False in conditions_for_object:
+                obj = blend_obj
+        
+        if outliner_col
+        '''
+    if obj:
+        print(obj)
+        #if To.objects[0] == None:
+        #    op.report({'ERROR'}, f'Object "{obj}" could not be found in {os.path.basename(item.filepath)}')
+        #    return {'CANCELLED'}
+        #obj: bpy.types.Object = To.objects[0]
+        #if post_process:
+
+        if not obj in list(view_layer.objects):
             activeCol.objects.link(obj)
+        new_obj = obj.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
+        for user_col in obj.users_collection:
+            if user_col.library: continue
+            user_col.objects.unlink(obj)
+        obj = new_obj
+        if obj == None: return {'CANCELLED'}
         spawned = obj
 
     if col:
-        if To.collections[0] == None:
-            op.report({'ERROR'}, f'Collection "{col}" could not be found in {os.path.basename(item.filepath)}')
-            return {'CANCELLED'}
-        col: bpy.types.Collection = To.collections[0]
-        context.scene.collection.children.link(col)
+        #if To.collections[0] == None:
+        #    op.report({'ERROR'}, f'Collection "{col}" could not be found in {os.path.basename(item.filepath)}')
+        #    return {'CANCELLED'}
+        #col: bpy.types.Collection = To.collections[0]
+        #col_users = bpy.data.user_map(subset=[col])[col]
+        #print(col_users)
+        if not col in context.scene.collection.children_recursive:
+            context.scene.collection.children.link(col)
+        col_users = bpy.data.user_map(subset=[col])[col]
         new_col = col.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
-        context.scene.collection.children.unlink(col)
+        if new_col == None: return {'CANCELLED'}
+        for user in col_users:
+            if isinstance(user, bpy.types.Scene):
+                if col in list(user.collection.children):
+                    user.collection.children.unlink(col)
+            if isinstance(user, bpy.types.Collection):
+                if col in list(user.children):
+                    user.children.unlink(col)
         col = new_col
         spawned = col
         
@@ -204,9 +242,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
     rev_leveled_map.clear()
     refd_by.clear()
 
-    for ID in sorted_refs:
-        if not ID.library: continue
-
+    for ID in filter(lambda a: getattr(a, 'library', None) != None, sorted_refs):
         if isinstance(ID, override_support):
             possible_override = ID.override_create(remap_local_usages=True)
             if possible_override != None:
@@ -229,8 +265,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
 
         gatherings['linked'].append(ID)
     
-    for ID in sorted_refs:
-        if not ID.override_library: continue
+    for ID in filter(lambda a: getattr(a, 'override_library', None) != None, sorted_refs):
         if ID.override_library.reference in gatherings['linked']:
             gatherings['linked'].remove(ID.override_library.reference)
         gatherings['override'].append(ID)
@@ -306,6 +341,25 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, item, ind_pref
     if prefs.execute_scripts:
         for text in filter(lambda a: isinstance(a, bpy.types.Text), gatherings['linked']):
             text.as_module()
+
+    scn = context.scene
+
+    # init rigid body physics
+    for id in filter(lambda a: isinstance(a, bpy.types.Object), gatherings['override']):
+        if getattr(id, 'rigid_body', None):
+            if scn.rigidbody_world == None:
+                bpy.ops.rigidbody.world_add()
+            if (rbw := getattr(scn.rigidbody_world, 'collection', None)) == None:
+                rbw = bpy.data.collections.new('RigidBodyWorld2')
+                scn.rigidbody_world.collection = rbw
+            if not id in list(rbw.objects): rbw.objects.link(id)
+        if getattr(id, 'rigid_body_constraint', None):
+            if scn.rigidbody_world == None:
+                bpy.ops.rigidbody.world_add()
+            if (rbc := getattr(scn.rigidbody_world, 'constraints', None)) == None:
+                rbc = bpy.data.collections.new('RigidBodyConstraints')
+                scn.rigidbody_world.constraints = rbc
+            if not id in list(rbc.objects): rbc.objects.link(id)
     
     del context.scene['new_spawn']
 
@@ -544,7 +598,20 @@ To spawn an item, it has to be the active item. This serves as a way of confirmi
             if not context.preferences.use_preferences_save:
                 layout.operator('wm.save_userpref')
 
-class SPAWNER_OT_SPAWNER(Operator):
+class mod_saver(Operator):
+    def invoke(self, context, event):
+        ctrl, shift, alt = event.ctrl, event.shift, event.alt
+        scn = context.scene
+        scn['key_ctrl'] = ctrl
+        scn['key_shift'] = shift
+        scn['key_alt'] = alt
+        
+        return_val = self.execute(context)
+        
+        del scn['key_ctrl'], scn['key_shift'], scn['key_alt']
+        return return_val
+
+class SPAWNER_OT_SPAWNER(mod_saver):
     bl_idname = 'spawner.spawner'
     bl_label = 'Spawn'
     bl_description = 'Spawn it!'
@@ -588,14 +655,89 @@ class SPAWNER_OT_SPAWNER(Operator):
             if entry.override_behavior:
                 prefs = entry
 
+        if not os.path.exists(entry.filepath):
+            self.report({'ERROR'}, f"{entry.filepath} doesn't exist!")
+            #self.report({'ERROR'}, "The .blend file no longer exists!")
+            return {'CANCELLED'}
+        
+        try:
+            with bpy.data.libraries.load(entry.filepath, link=True, relative=True) as (From, To):
+                if obj:
+                    To.objects = [obj]
+                if col:
+                    To.collections = [col]
+        except:
+            self.report({'ERROR'}, f'The .blend you are trying to open is corrupt!')
+            return {'CANCELLED'}
+
         if obj:
-            return load_data(self, context, entry, prefs, obj=obj)
+            if To.objects[0] == None:
+                self.report({'ERROR'}, f'Object "{obj}" could not be found in {os.path.basename(entry.filepath)}')
+                return {'CANCELLED'}
+            return load_data(self, context, ind_prefs=prefs, obj=To.objects[0])
         
         if col:
-            return load_data(self, context, entry, prefs, col=col)
+            if To.collections[0] == None:
+                self.report({'ERROR'}, f'Collection "{col}" could not be found in {os.path.basename(entry.filepath)}')
+                return {'CANCELLED'}
+            return load_data(self, context, ind_prefs=prefs, col=To.collections[0])
         
         self.report({'WARNING'}, 'What?')
         return {'CANCELLED'}
+    
+class SPAWNER_OT_POST_OPTIMIZE(mod_saver):
+    bl_idname = 'spawner.post_optimize'
+    bl_label = 'Optimize with OptiPloy'
+    bl_description = 'Optimize the selected linked objects with OptiPloy'
+
+    bl_options = {'UNDO'}
+
+    def execute(self, context):
+        #print(context.space_data, context.area.type, context.window, context.screen)
+        #return {'CANCELLED'}
+        if context.area.type == 'VIEW_3D':
+            ids = context.selected_objects
+        if context.area.type == 'OUTLINER':
+            ids = context.selected_ids
+        cols = set(filter(lambda a: isinstance(a, bpy.types.Collection) and getattr(a, 'library', None) != None, ids)) # get selected collections
+        objs = filter(lambda a: isinstance(a, bpy.types.Object), ids) # get selected collections
+        objs = set(filter(lambda a: not (True in [col in cols for col in a.users_collection]), objs))  # remove objects if their collection is selected
+        objs = set(filter(lambda a: not (getattr(a, 'parent', False) in objs), objs)) # only get the top most selected objects
+        true_ids = set()
+        for id in objs:
+            for col in id.users_collection:
+                if col.library:
+                    cols.add(col)
+                    break
+            else:
+                true_ids.add(id)
+        ids = true_ids.union(cols)
+        prefs = context.preferences.addons[base_package].preferences
+        for id in ids: #filter(lambda a: getattr(a, 'library', None) != None, ids):
+            conditions_for_instance = [
+                getattr(id, 'type', None) == 'EMPTY', # if object is an empty
+                getattr(id, 'instance_type', None) == 'COLLECTION', # if the empty has its instance type set to collection
+                getattr(getattr(id, 'instance_collection', None), 'library', None) != None, # and the instanced collection has linked library data
+            ]
+            conditions_for_object = [
+                isinstance(id, bpy.types.Object),
+                id.library != None,
+            ]
+            conditions_for_col = [
+                isinstance(id, bpy.types.Collection),
+                id.library != None,
+            ]
+
+            if not False in conditions_for_instance:
+                col = id.instance_collection
+                return_val = load_data(self, context, ind_prefs=prefs, col=col)
+                if return_val == {'FINISHED'}:
+                    bpy.data.objects.remove(id)
+            elif not False in conditions_for_col:
+                load_data(self, context, ind_prefs=prefs, col=id)
+            elif not False in conditions_for_object:
+                load_data(self, context, ind_prefs=prefs, obj=id)
+        return {'FINISHED'}
 
 class SPAWNER_OBJECT_UL_List(UIList):
     def draw_item(self, context,
@@ -667,11 +809,16 @@ class SPAWNER_OT_genericText(bpy.types.Operator):
     def execute(self, context):
         return {'FINISHED'}
 
+def draw_item(self:bpy.types.Menu, context):
+    layout = self.layout
+    layout.separator()
+    layout.operator('spawner.post_optimize')
 
 classes = [
     SPAWNER_PT_panel,
     SPAWNER_GENERIC_SPAWN_UL_List,
     SPAWNER_OT_SPAWNER,
+    SPAWNER_OT_POST_OPTIMIZE,
     SPAWNER_OT_genericText,
     SPAWNER_PT_extra_settings,
     SPAWNER_PT_folder_settings,
@@ -681,7 +828,15 @@ classes = [
 def register():
     for i in classes:
         bpy.utils.register_class(i)
+    bpy.types.VIEW3D_MT_object.append(draw_item)
+    bpy.types.OUTLINER_MT_context_menu.append(draw_item)
+    bpy.types.OUTLINER_MT_object.append(draw_item)
+    bpy.types.OUTLINER_MT_collection.append(draw_item)
 
 def unregister():
     for i in reversed(classes):
         bpy.utils.unregister_class(i)
+    bpy.types.VIEW3D_MT_object.remove(draw_item)
+    bpy.types.OUTLINER_MT_context_menu.remove(draw_item)
+    bpy.types.OUTLINER_MT_object.remove(draw_item)
+    bpy.types.OUTLINER_MT_collection.remove(draw_item)

@@ -92,6 +92,7 @@ class folders(PropertyGroup):
     filepath: StringProperty(name='Folder Path', description='Path to this directory', subtype='DIR_PATH', update=exists)
     name: StringProperty(name='Name')#, options=set(), update=sorter)
     exists: BoolProperty(default=False)
+    category: BoolProperty(default=False)
     selected_blend: EnumProperty(items=folders_blend_CB, name='Selected .blend', description='Selected .blend file under active folder')
 
     override_behavior:      BoolProperty(default=False, name='Override Behavior')
@@ -148,7 +149,13 @@ class FOLDERS_SPAWNER_UL_List(UIList):
         prefs = context.preferences.addons[base_package].preferences
         folders = prefs.folders
         row = layout.row()
-        row.label(text='', icon='FILE_FOLDER' if item.exists else 'CANCEL')
+        if item.exists:
+            icon = 'FILE_FOLDER'
+        elif item.category:
+            icon = 'ASSET_MANAGER'
+        else:
+            icon = 'CANCEL'
+        row.label(text='', icon=icon)
         if prefs.folders[prefs.folder_index] == item:
             row.prop(item, 'name', text='')
         else:
@@ -219,7 +226,6 @@ class blendentriespref(AddonPreferences):
     localize_grease_pencil: BoolProperty(default=False, name='Localize grease pencil', options=set())
      
     execute_scripts: BoolProperty(default=True, name='Execute Attached Scripts', options=set())
-    
 
     def draw(self, context):
         layout = self.layout
@@ -238,8 +244,13 @@ Hold SHIFT to reverse sort.'''
         row = box.row()
         row.template_list('BLENDS_SPAWNER_UL_List', 'Blends', self, 'blends', self, 'blend_index')
         col = row.column()
-        col.operator('spawner.add_entry', text='', icon='ADD').blends=True
-        col.operator('spawner.remove_entry', text='', icon='REMOVE').blends=True
+
+        op = col.operator('spawner.add_entry', text='', icon='ADD')
+        op.blend=True
+        op.folder = False
+        op = col.operator('spawner.remove_entry', text='', icon='REMOVE')
+        op.blend = True
+        op.folder = False
 
         col.separator()
 
@@ -324,14 +335,28 @@ Hold SHIFT to reverse sort.'''
                     op.collection=True
                 else:
                     row.label(text='No collections!')
+        row = layout.row()
+        #col = layout.column()
+        row = row.row()
+        row.alignment = 'EXPAND'
+        row.label(text='Folder entries', icon='FILE_FOLDER')
+        row = row.row()
+        row.alignment = 'RIGHT'
+        row.label(text='Hold Shift to add a "Category"')
+        row = row.row(align=True)
+        row.label(text='', icon='ASSET_MANAGER')
 
-        layout.row().label(text='Folder entries', icon='FILE_FOLDER')
         box = layout.box()
         row = box.row()
         row.template_list('FOLDERS_SPAWNER_UL_List', 'Folders', self, 'folders', self, 'folder_index')
         col = row.column()
-        col.operator('spawner.add_entry', text='', icon='ADD').blends=False
-        col.operator('spawner.remove_entry', text='', icon='REMOVE').blends=False
+
+        op = col.operator('spawner.add_entry', text='', icon='ADD')
+        op.blend=False
+        op.folder = True
+        op = col.operator('spawner.remove_entry', text='', icon='REMOVE')
+        op.blend = False
+        op.folder = True
 
         col.separator()
 
@@ -357,17 +382,30 @@ Hold SHIFT to reverse sort.'''
 
         if (len(self.folders) != 0) and (self.folder_index < len(self.folders)):
             folder = self.folders[self.folder_index]
-            box.row().prop(folder, 'filepath')
+            if folder.category:
+                box.row().label(text='This is a category, a way to organize separated .blend files.')
+            else:
+                box.row().prop(folder, 'filepath')
             row = box.row()
             row.prop(self, 'folder_more_info', toggle=True)
-            if self.folder_more_info and len(folder.blends) > 0:
-                blend = folder.blends[max(min(folder.blend_index, len(folder.blends)-1), 0)]
+            if self.folder_more_info:# and len(folder.blends) > 0:
+                
                 row = box.row()
                 box = row.box()
                 box.row().label(text='.blends', icon='BLENDER')
                 row = box.row()
                 row.template_list('BLENDS_SPAWNER_UL_List', '.blend files', folder, 'blends', folder, 'blend_index')
                 col = row.column()
+
+                op = col.operator('spawner.add_entry', text='', icon='ADD')
+                op.blend=True
+                op.folder = True
+                op = col.operator('spawner.remove_entry', text='', icon='REMOVE')
+                op.blend = True
+                op.folder = True
+
+                col.separator()#1, 'LINE')
+
                 for offset, icon in [(-1, 'TRIA_UP'), (1, 'TRIA_DOWN')]:
                     op = col.operator('spawner.move', text='', icon=icon)
                     op.offset = offset
@@ -386,61 +424,62 @@ Hold SHIFT to reverse sort.'''
                 op.folder=True
                 op.object=False
                 op.collection=False
+                if len(folder.blends) > 0:
+                    blend = folder.blends[max(min(folder.blend_index, len(folder.blends)-1), 0)]
+                    objBox = box.box()
+                    objBox.row().label(text='Objects', icon='OBJECT_DATA')
+                    row = objBox.row()
+                    if len(blend.objects) > 0:
+                        row.template_list('SPAWNER_GENERIC_UL_List', 'Objects', blend, 'objects', self, 'obj_index')
+                        col = row.column()
+                        for offset, icon in [(-1, 'TRIA_UP'), (1, 'TRIA_DOWN')]:
+                            op = col.operator('spawner.move', text='', icon=icon)
+                            op.offset = offset
+                            op.blend = True
+                            op.folder = True
+                            op.object = True
+                            op.collection = False
+                        col.separator()
 
-                objBox = box.box()
-                objBox.row().label(text='Objects', icon='OBJECT_DATA')
-                row = objBox.row()
-                if len(blend.objects) > 0:
-                    row.template_list('SPAWNER_GENERIC_UL_List', 'Objects', blend, 'objects', self, 'obj_index')
-                    col = row.column()
-                    for offset, icon in [(-1, 'TRIA_UP'), (1, 'TRIA_DOWN')]:
-                        op = col.operator('spawner.move', text='', icon=icon)
-                        op.offset = offset
-                        op.blend = True
-                        op.folder = True
-                        op.object = True
-                        op.collection = False
-                    col.separator()
+                        op = col.operator('spawner.alpha_sort', text='', icon='SORTALPHA')
+                        op.text = alpha_text
+                        op.icons = alpha_icons
+                        op.size = alpha_size
+                        op.width=310
+                        op.blend=True
+                        op.folder=True
+                        op.object=True
+                        op.collection=False
+                    else:
+                        row.label(text='No objects!')
+                    
+                    colBox = box.box()
+                    colBox.row().label(text='Collections', icon='OUTLINER_COLLECTION')
+                    row = colBox.row()
+                    if len(blend.collections) > 0:
+                        row.template_list('SPAWNER_GENERIC_UL_List', 'Collections', blend, 'collections', self, 'col_index')
+                        col = row.column()
+                        for offset, icon in [(-1, 'TRIA_UP'), (1, 'TRIA_DOWN')]:
+                            op = col.operator('spawner.move', text='', icon=icon)
+                            op.offset = offset
+                            op.blend = True
+                            op.folder = True
+                            op.object = False
+                            op.collection = True
 
-                    op = col.operator('spawner.alpha_sort', text='', icon='SORTALPHA')
-                    op.text = alpha_text
-                    op.icons = alpha_icons
-                    op.size = alpha_size
-                    op.width=310
-                    op.blend=True
-                    op.folder=True
-                    op.object=True
-                    op.collection=False
-                else:
-                    row.label(text='No objects!')
-                
-                colBox = box.box()
-                colBox.row().label(text='Collections', icon='OUTLINER_COLLECTION')
-                row = colBox.row()
-                if len(blend.collections) > 0:
-                    row.template_list('SPAWNER_GENERIC_UL_List', 'Collections', blend, 'collections', self, 'col_index')
-                    col = row.column()
-                    for offset, icon in [(-1, 'TRIA_UP'), (1, 'TRIA_DOWN')]:
-                        op = col.operator('spawner.move', text='', icon=icon)
-                        op.offset = offset
-                        op.blend = True
-                        op.folder = True
-                        op.object = False
-                        op.collection = True
+                        col.separator()
 
-                    col.separator()
-
-                    op = col.operator('spawner.alpha_sort', text='', icon='SORTALPHA')
-                    op.text = alpha_text
-                    op.icons = alpha_icons
-                    op.size = alpha_size
-                    op.width=310
-                    op.blend=True
-                    op.folder=True
-                    op.object=False
-                    op.collection=True
-                else:
-                    row.label(text='No collections!')
+                        op = col.operator('spawner.alpha_sort', text='', icon='SORTALPHA')
+                        op.text = alpha_text
+                        op.icons = alpha_icons
+                        op.size = alpha_size
+                        op.width=310
+                        op.blend=True
+                        op.folder=True
+                        op.object=False
+                        op.collection=True
+                    else:
+                        row.label(text='No collections!')
         
 class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
     bl_idname = 'spawner.add_entry'
@@ -449,12 +488,31 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
 
     filepath: StringProperty()
     directory: StringProperty()
-    blends: BoolProperty(default=True)
+    blend: BoolProperty(default=True)
+    folder: BoolProperty(default=False)
     filter_glob: StringProperty(default='*.blend')
+    _shift = None
+
+    def invoke(self, context, event):
+        self._shift = event.shift
+        if self.folder and self._shift:
+            return self.execute(context)
+        return super().invoke(context, event)
 
     def execute(self, context):
         prefs = context.preferences.addons[base_package].preferences
-        if self.blends:
+
+        if self.blend and self.folder:
+            if not os.path.exists(self.filepath):
+                self.report({'ERROR'}, f'{self.filepath} does not exist!')
+                return {'CANCELLED'}
+            folder = prefs.folders[prefs.folder_index]
+            new_entry = folder.blends.add()
+            new_entry.filepath = self.filepath
+            name = os.path.basename(self.filepath).rsplit('.', maxsplit=1)[0]
+            new_entry.name = name
+            scan(self, context, new_entry)
+        elif self.blend:
             if not os.path.exists(self.filepath):
                 self.report({'ERROR'}, f'{self.filepath} does not exist!')
                 return {'CANCELLED'}
@@ -463,15 +521,20 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
             new_entry.filepath = bpy.path.abspath(new_entry.filepath) # just in case
             name = os.path.basename(self.filepath).rsplit('.', maxsplit=1)[0]
             new_entry.name = name
-            scan(self, context, prefs.blends[-1])
-            
+            scan(self, context, new_entry)
         else:
+            if not os.path.exists(self.directory) and not self._shift:
+                self.report({'ERROR'}, f'{self.directory} does not exist!')
+                return {'CANCELLED'}
             new_entry = prefs.folders.add()
-            new_entry.filepath = self.directory
-            new_entry.filepath = bpy.path.abspath(new_entry.filepath) # just in case
-            name = os.path.basename(self.directory.rstrip("\\/"))
-            new_entry.name = name
-            scan(self, context, prefs.folders[-1])
+            if self._shift:
+                new_entry.category = True
+                new_entry.name = 'New Category'
+            else:
+                new_entry.filepath = self.directory
+                name = os.path.basename(self.directory.rstrip("\\/"))
+                new_entry.name = name
+                scan(self, context, new_entry)
         context.window_manager.progress_end()
         return {'FINISHED'}
     
@@ -480,11 +543,16 @@ class SPAWNER_OT_Remove_Entry(Operator):
     bl_label = 'Remove Blend Entry'
     bl_description = 'Add a .blend file to spawn from'
 
-    blends: BoolProperty(default=True)
+    blend: BoolProperty(default=True)
+    folder: BoolProperty(default=False)
 
     def execute(self, context):
         prefs = context.preferences.addons[base_package].preferences
-        if self.blends:
+        if self.blend and self.folder:
+            folder = prefs.folders[prefs.folder_index]
+            folder.blends.remove(folder.blend_index)
+            folder.blend_index -= 1
+        elif self.blend:
             index = prefs.blend_index
             prefs.blend_index -= 1
             prefs.blends.remove(index)
@@ -496,7 +564,6 @@ class SPAWNER_OT_Remove_Entry(Operator):
     
     def invoke(self, context, event):
         return context.window_manager.invoke_confirm(self, event)
-    
 
 def scan(op: bpy.types.Operator, context: bpy.types.Context, item, skip = False):
     wm = context.window_manager
@@ -599,7 +666,12 @@ class SPAWNER_OT_SCAN(Operator):
         
         if folder != -1 and blend == -1:
             folder = prefs.folders[folder]
-            return_val = scan(self, context, folder)
+            if folder.category:
+                for blend in folder.blends:
+                    scan(self, context, blend)
+                return_val = {'FINISHED'}
+            else:
+                return_val = scan(self, context, folder)
             context.window_manager.progress_end()
             return return_val
         
@@ -778,7 +850,7 @@ class SPAWNER_OT_CONTEXT(Operator):
     bl_label = 'context'
 
     def execute(self, context):
-        print(context.property)
+        print(context.space_data, context.area.type, context.window, context.screen)
         return {'FINISHED'}
 
 class spawner_props(PropertyGroup):
@@ -806,7 +878,8 @@ classes = [
     SPAWNER_OT_Remove_Entry,
     SPAWNER_OT_SCAN,
     SPAWNER_OT_ALPHA_SORT,
-    SPAWNER_OT_MOVE
+    SPAWNER_OT_MOVE,
+    SPAWNER_OT_CONTEXT,
 ]
 
 def register():
