@@ -8,10 +8,15 @@ OptiPloy (optimized deployment) can be considered a better alternative to append
 # Here's how to set it up.
 In the preferences, you will find two sections to add .blend files. Individually or by a folder of them. Now there are two things worth noting. OptiPloy will only spawn objects or collections, *if* they have been marked as assets. And two, sub-folders will NOT be parsed.
 
+Along with folders, you may also add "Categories" by holding Shift while adding a folder. For the sake of organization, Categories allow you to group together .blend files despite not being in the same folder.
+
 Once you have a .blend file prepared with a rig under a collection marked as an asset, you may now add that .blend file to OptiPloy. It will automatically be scanned for spawnable items, which you can spawn through the OptiPloy tab in the 3D Viewport.
 
 # How does OptiPloy work?
 Through the `bpy.data.libraries.load` feature, OptiPloy links an object/collection, applies library overrides over hierarchy, then localizes it as much as the user wishes. This is crucial for a fast-working spawning tool that compromises between the benefits of localized data and linked data. And since the localization options can be entry-specific, I have no doubt this could be a user-favorite when it comes to working with the tens to hundreds of rigs they frequently use.
+
+# Blender Asset Library Functionality
+When linking collections or objects through the asset browser, you can post-optimize them with OptiPloy using the global preferences. You can find this `Optimize with OptiPloy` operator in `Object > Optimize with OptiPloy` or by right-clicking an ID in the Outliner.
 
 ## Linked vs. Library Overrides vs. Localized
 When you link data from another file, you cannot edit that linked data because it is not yours. Everything about it comes from another file, therefore to make changes, you must edit in that source file.
@@ -30,7 +35,15 @@ However, leaving things unlocalized gives users a chance to modify the data in t
 Spawning the same data with different settings applied will not localize pre-existing data, so long as the data is that of collections, objects, materials, or any other object data type. (see [object data types](https://docs.blender.org/api/current/bpy_types_enum_items/object_type_items.html#rna-enum-object-type-items))
 
 ## To scripters
-Optiploy assigns newly spawned items to a globally accessible variable, `context.scene['new_spawn']`. This gives you an opportunity to write a script to further modify data when OptiPloy executes any attached script. Say for example, you have a ragdoll rig and you need to initialize the Rigid Body World and assign collisions and constraints to collections used by the RBW.
+OptiPloy assigns newly spawned items to a globally accessible variable, `context.scene['new_spawn']`. This gives you an opportunity to write a script to further modify data when OptiPloy executes any attached script. Say for example, you have a ragdoll rig and you need to initialize the Rigid Body World and assign collisions and constraints to collections used by the RBW.
+
+OptiPloy will also record key modifiers as custom properties on the scene for scripts to take advantage of. The custom properties are aptly named:
+
+`context.scene["key_ctrl"]` for Control
+`context.scene["key_shift"]` for Shift
+`context.scene["key_alt"]` for Alt
+
+These custom properties will be deleted after the script execution stage.
 
 # Last thing
 In the tools view mode in the OptiPloy tab, you can choose whether to localize meshes, materials, images, node groups, and armature data by default. But if this data gets localized despite having these options disabled, that means they are localized because another asset requires them to be.

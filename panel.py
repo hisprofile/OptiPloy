@@ -155,49 +155,8 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, *, post_proces
         # i think it actually just makes a copy of the image. bad for optimization
 
     )
-    '''
-    if item != None:
-        if not os.path.exists(item.filepath):
-            op.report({'ERROR'}, f"{item.filepath} doesn't exist!")
-            op.report({'ERROR'}, "The .blend file no longer exists!")
-            return {'CANCELLED'}
-        
-        try:
-            with bpy.data.libraries.load(item.filepath, link=True, relative=True) as (From, To):
-                if obj:
-                    To.objects = [obj]
-                if col:
-                    To.collections = [col]
-        except:
-            op.report({'ERROR'}, f'The .blend you are trying to open is corrupt!')
-            return {'CANCELLED'}
-    
-    else:
-        if blend_obj:
-            conditions_for_instance = {
-                blend_obj.type == 'EMPTY', # if object is an empty
-                blend_obj.instance_type == 'COLLECTION', # if the empty has its instance type set to collection
-                getattr(blend_obj.instance_collection, 'library', None) != None, # and the instanced collection has linked library data
-            }
-            conditions_for_object = {
-                blend_obj.type == 'OBJECT',
-                blend_obj.library != None,
-            }
-            if not False in conditions_for_instance:
-                col = blend_obj.instance_collection
-            elif not False in conditions_for_object:
-                obj = blend_obj
-        
-        if outliner_col
-        '''
-    if obj:
-        print(obj)
-        #if To.objects[0] == None:
-        #    op.report({'ERROR'}, f'Object "{obj}" could not be found in {os.path.basename(item.filepath)}')
-        #    return {'CANCELLED'}
-        #obj: bpy.types.Object = To.objects[0]
-        #if post_process:
 
+    if obj:
         if not obj in list(view_layer.objects):
             activeCol.objects.link(obj)
         new_obj = obj.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
@@ -209,12 +168,6 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, *, post_proces
         spawned = obj
 
     if col:
-        #if To.collections[0] == None:
-        #    op.report({'ERROR'}, f'Collection "{col}" could not be found in {os.path.basename(item.filepath)}')
-        #    return {'CANCELLED'}
-        #col: bpy.types.Collection = To.collections[0]
-        #col_users = bpy.data.user_map(subset=[col])[col]
-        #print(col_users)
         if not col in context.scene.collection.children_recursive:
             context.scene.collection.children.link(col)
         col_users = bpy.data.user_map(subset=[col])[col]
@@ -700,7 +653,7 @@ class SPAWNER_OT_POST_OPTIMIZE(mod_saver):
         if context.area.type == 'OUTLINER':
             ids = context.selected_ids
         cols = set(filter(lambda a: isinstance(a, bpy.types.Collection) and getattr(a, 'library', None) != None, ids)) # get selected collections
-        objs = filter(lambda a: isinstance(a, bpy.types.Object), ids) # get selected collections
+        objs = filter(lambda a: isinstance(a, bpy.types.Object), ids) # get selected objects
         objs = set(filter(lambda a: not (True in [col in cols for col in a.users_collection]), objs))  # remove objects if their collection is selected
         objs = set(filter(lambda a: not (getattr(a, 'parent', False) in objs), objs)) # only get the top most selected objects
         true_ids = set()
@@ -713,7 +666,7 @@ class SPAWNER_OT_POST_OPTIMIZE(mod_saver):
                 true_ids.add(id)
         ids = true_ids.union(cols)
         prefs = context.preferences.addons[base_package].preferences
-        for id in ids: #filter(lambda a: getattr(a, 'library', None) != None, ids):
+        for id in ids: 
             conditions_for_instance = [
                 getattr(id, 'type', None) == 'EMPTY', # if object is an empty
                 getattr(id, 'instance_type', None) == 'COLLECTION', # if the empty has its instance type set to collection

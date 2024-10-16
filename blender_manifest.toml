@@ -3,7 +3,7 @@ schema_version = "1.0.0"
 # Example of manifest file for a Blender extension
 # Change the values according to your extension
 id = "optiploy"
-version = "1.1.0"
+version = "1.2.0"
 name = "optiploy"
 tagline = "Append and link rigs, save space like never before"
 maintainer = "hisanimations <hisprofile029@gmail.com"
@@ -15,7 +15,7 @@ type = "add-on"
 
 # Optional list defined by Blender and server, see:
 # https://docs.blender.org/manual/en/dev/advanced/extensions/tags.html
-tags = ["Pipeline", "Animation", "Rigging", "Add Mesh"]
+tags = ["Pipeline", "Animation", "Rigging", "Import-Export"]
 
 blender_version_min = "4.2.0"
 # # Optional: Blender version that the extension does not support, earlier versions are supported.

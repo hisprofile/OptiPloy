@@ -40,7 +40,8 @@ def folders_CB(self, context):
     prefs = context.preferences.addons[base_package].preferences
     items = []
     for n, folder in enumerate(prefs.folders):
-        items.append((str(n), folder.name, 'This is a folder!', 'FILE_FOLDER', n))
+        icon = 'FILE_FOLDER' if not folder.category else 'ASSET_MANAGER'
+        items.append((str(n), folder.name, 'This is a folder!', icon, n))
     return items
 
 def folders_blend_CB(self, context):
@@ -532,7 +533,10 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
                 new_entry.name = 'New Category'
             else:
                 new_entry.filepath = self.directory
-                name = os.path.basename(self.directory.rstrip("\\/"))
+                directory: str = self.directory
+                directory = directory.removesuffix('/')
+                directory = directory.removesuffix('\\')
+                name = os.path.basename(directory)
                 new_entry.name = name
                 scan(self, context, new_entry)
         context.window_manager.progress_end()
@@ -879,7 +883,7 @@ classes = [
     SPAWNER_OT_SCAN,
     SPAWNER_OT_ALPHA_SORT,
     SPAWNER_OT_MOVE,
-    SPAWNER_OT_CONTEXT,
+    #SPAWNER_OT_CONTEXT,
 ]
 
 def register():
