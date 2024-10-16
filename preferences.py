@@ -427,6 +427,7 @@ Hold SHIFT to reverse sort.'''
                 op.collection=False
                 if len(folder.blends) > 0:
                     blend = folder.blends[max(min(folder.blend_index, len(folder.blends)-1), 0)]
+                    box.row().prop(blend, 'filepath')
                     objBox = box.box()
                     objBox.row().label(text='Objects', icon='OBJECT_DATA')
                     row = objBox.row()

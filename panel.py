@@ -303,7 +303,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, *, post_proces
             if scn.rigidbody_world == None:
                 bpy.ops.rigidbody.world_add()
             if (rbw := getattr(scn.rigidbody_world, 'collection', None)) == None:
-                rbw = bpy.data.collections.new('RigidBodyWorld2')
+                rbw = bpy.data.collections.new('RigidBodyWorld')
                 scn.rigidbody_world.collection = rbw
             if not id in list(rbw.objects): rbw.objects.link(id)
         if getattr(id, 'rigid_body_constraint', None):
