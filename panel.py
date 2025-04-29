@@ -35,14 +35,15 @@ def only(item, *argv):
             return False
     return True
 
-def load_data(op: bpy.types.Operator, context: bpy.types.Context, *, post_process=False, ind_prefs=None, obj:bpy.types.Object=None, col:bpy.types.Collection=None):
+def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlayer, *, post_process=False, ind_prefs=None, obj:bpy.types.Object=None, col:bpy.types.Collection=None, ):
     from typing import Dict, Set
     from bpy.types import ID
 
     prefs = context.preferences.addons[base_package].preferences
     props = context.scene.optiploy_props
     activeCol = context.view_layer.active_layer_collection.collection
-    view_layer = context.view_layer
+    scene, view_layer = scene_viewlayer
+    #view_layer = context.view_layer
     
     #col: bpy.types.Collection = bpy.data.collections[col]
     bone_shapes = set()
@@ -142,6 +143,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, *, post_proces
         bpy.types.Light,
         bpy.types.Curve,
         bpy.types.GreasePencil,
+        bpy.types.GreasePencilv3,
         bpy.types.MetaBall,
         bpy.types.TextCurve,
         bpy.types.Volume,
@@ -159,7 +161,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, *, post_proces
     if obj:
         if not obj in list(view_layer.objects):
             activeCol.objects.link(obj)
-        new_obj = obj.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
+        new_obj = obj.override_hierarchy_create(scene, view_layer, reference=None, do_fully_editable=True)
         for user_col in obj.users_collection:
             if user_col.library: continue
             user_col.objects.unlink(obj)
@@ -168,10 +170,10 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, *, post_proces
         spawned = obj
 
     if col:
-        if not col in context.scene.collection.children_recursive:
-            context.scene.collection.children.link(col)
+        if not col in scene.collection.children_recursive:
+            scene.collection.children.link(col)
         col_users = bpy.data.user_map(subset=[col])[col]
-        new_col = col.override_hierarchy_create(context.scene, context.view_layer, reference=None, do_fully_editable=True)
+        new_col = col.override_hierarchy_create(scene, view_layer, reference=None, do_fully_editable=True)
         if new_col == None: return {'CANCELLED'}
         for user in col_users:
             if isinstance(user, bpy.types.Scene):
@@ -277,20 +279,22 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, *, post_proces
         clean_remap(bpy.types.Volume)
     if ind_prefs.localize_grease_pencil:
         clean_remap(bpy.types.GreasePencil)
+        clean_remap(bpy.types.GreasePencilv3)
 
     if col and prefs.to_cursor:
         for object in spawned.all_objects:
             if object.parent: continue
-            object.location = context.scene.cursor.location
+            object.location = scene.cursor.location
 
     if obj and prefs.to_cursor:
         top = spawned
         while top.parent != None:
             top = top.parent
-        top.location = context.scene.cursor.location
+        top.location = scene.cursor.location
 
     context.scene['new_spawn'] = spawned # assign the newly spawned item to a globally accessible variable, giving developers the opportunity to further modify data in the scripts execution stage
-
+    scene['optiploy_last_spawned'] = spawned
+    context.scene['optiploy_last_spawned'] = spawned
     if prefs.execute_scripts:
         for text in filter(lambda a: isinstance(a, bpy.types.Text), gatherings['linked']):
             text.as_module()
@@ -584,6 +588,7 @@ class SPAWNER_OT_SPAWNER(mod_saver):
     object: StringProperty(default='')
     collection: StringProperty(default='')
     activate: BoolProperty()
+    scene: StringProperty(default='')
 
     index: IntProperty()
 
@@ -622,18 +627,23 @@ class SPAWNER_OT_SPAWNER(mod_saver):
         except:
             self.report({'ERROR'}, f'The .blend you are trying to open is corrupt!')
             return {'CANCELLED'}
+        
+        import_scene = bpy.data.scenes.get(self.scene, None) or context.scene
+        view_layer = getattr(import_scene, 'view_layers', [context.view_layer])[0] if self.scene else context.view_layer
+
+        scene_viewlayer = [import_scene, view_layer]
 
         if obj:
             if To.objects[0] == None:
                 self.report({'ERROR'}, f'Object "{obj}" could not be found in {os.path.basename(entry.filepath)}')
                 return {'CANCELLED'}
-            return load_data(self, context, ind_prefs=prefs, obj=To.objects[0])
+            return load_data(self, context, scene_viewlayer, ind_prefs=prefs, obj=To.objects[0])
         
         if col:
             if To.collections[0] == None:
                 self.report({'ERROR'}, f'Collection "{col}" could not be found in {os.path.basename(entry.filepath)}')
                 return {'CANCELLED'}
-            return load_data(self, context, ind_prefs=prefs, col=To.collections[0])
+            return load_data(self, context, scene_viewlayer, ind_prefs=prefs, col=To.collections[0])
         
         self.report({'WARNING'}, 'What?')
         return {'CANCELLED'}
@@ -648,6 +658,12 @@ class SPAWNER_OT_POST_OPTIMIZE(mod_saver):
     def execute(self, context):
         #print(context.space_data, context.area.type, context.window, context.screen)
         #return {'CANCELLED'}
+
+        #import_scene = bpy.data.scenes.get(self.scene, None) or context.scene
+        #view_layer = getattr(import_scene, 'view_layers', [context.view_layer])[0] if self.scene else context.view_layer
+
+        scene_viewlayer = [context.scene, context.view_layer]
+
         if context.area.type == 'VIEW_3D':
             ids = context.selected_objects
         if context.area.type == 'OUTLINER':
@@ -687,9 +703,9 @@ class SPAWNER_OT_POST_OPTIMIZE(mod_saver):
                 if return_val == {'FINISHED'}:
                     bpy.data.objects.remove(id)
             elif not False in conditions_for_col:
-                load_data(self, context, ind_prefs=prefs, col=id)
+                load_data(self, context, scene_viewlayer, ind_prefs=prefs, col=id)
             elif not False in conditions_for_object:
-                load_data(self, context, ind_prefs=prefs, obj=id)
+                load_data(self, context, scene_viewlayer, ind_prefs=prefs, obj=id)
         return {'FINISHED'}
 
 class SPAWNER_OBJECT_UL_List(UIList):
