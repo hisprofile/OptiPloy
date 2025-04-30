@@ -6,6 +6,8 @@ from bpy.types import (UIList, Panel, Operator, Menu)
 from bpy.props import *
 from collections import defaultdict
 
+from pathlib import Path
+
 folder_path = os.path.dirname(__file__)
 
 options = [
@@ -143,7 +145,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         bpy.types.Light,
         bpy.types.Curve,
         bpy.types.GreasePencil,
-        bpy.types.GreasePencilv3,
+        getattr(bpy.types, 'GreasePencilv3', bpy.types.GreasePencil),
         bpy.types.MetaBall,
         bpy.types.TextCurve,
         bpy.types.Volume,
@@ -466,32 +468,62 @@ class SPAWNER_PT_panel(Panel):
             if not len(prefs.blends):
                 layout.row().label(text='Add a .blend file in the preferences to get started!')
                 return
+            
+            blend = prefs.blends[int(props.selected_blend)]
+
             row = layout.row()
-            row.label(text='', icon='BLENDER')
+            row.alert = True
+            op = row.operator('spawner.open_blend', text='', icon='BLENDER')
+            op.text = '''Hold CTRL to reload the .blend file as a library.
+Hold SHIFT to open the .blend file in a new instance of Blender.
+Hold ALT to re-scan the .blend file in OptiPloy.
+Don't worry about the button being red. It's only meant to call your attention.'''
+            op.icons='EVENT_CTRL,EVENT_SHIFT,EVENT_ALT,QUESTION'
+            op.size='56,56,56,56'
+            op.width=350
+            op.path = blend.filepath
+            op.folder = -1
+            op.blend = int(props.selected_blend)
+
             row = row.row()
+            row.alert = False
             row.prop(props, 'selected_blend', text='')
             row.popover('SPAWNER_PT_blend_settings', text='', icon='SETTINGS')
-            blend = prefs.blends[int(props.selected_blend)]
-        
+            
         if props.view == 'FOLDERS':
             if not len(prefs.folders):
                 layout.row().label(text='Add a folder of .blend files in the preferences to get started!')
                 return
+            
             row = layout.row()
             row = row.row()
             row.label(text='', icon='FILE_FOLDER')
             row.prop(props, 'selected_folder', text='')
             row.popover('SPAWNER_PT_folder_settings', text='', icon='SETTINGS')
             folder = prefs.folders[int(props.selected_folder)]
+            blend = folder.blends[int(folder.selected_blend)]
             if not len(folder.blends):
                 layout.row().label(text='This folder has no .blend files marked! Has it been scanned?')
                 return None
             row = layout.row()
-            row.label(text='', icon='BLENDER')
+            row.alert = True
+            #row.label(text='', icon='BLENDER')
+            op = row.operator('spawner.open_blend', text='', icon='BLENDER')
+            op.text = '''Hold CTRL to reload the .blend file as a library.
+Hold SHIFT to open the .blend file in a new instance of Blender.
+Hold ALT to re-scan the .blend file in OptiPloy.
+Don't worry about the button being red. It's only meant to call your attention.'''
+            op.icons='EVENT_CTRL,EVENT_SHIFT,EVENT_ALT,QUESTION'
+            op.size='56,56,56,56'
+            op.width=350
+            op.path = blend.filepath
+            op.folder = int(int(props.selected_folder))
+            op.blend = int(folder.selected_blend)
+
             row = row.row()
+            row.alert = False
             row.prop(folder, 'selected_blend', text='')
             row.popover('SPAWNER_PT_blend_settings', text='', icon='SETTINGS')
-            blend = folder.blends[int(folder.selected_blend)]
         
         if props.view != 'TOOLS':
             box = layout.box()
@@ -777,6 +809,41 @@ class SPAWNER_OT_genericText(bpy.types.Operator):
 
     def execute(self, context):
         return {'FINISHED'}
+    
+class SPAWNER_OT_open_blend(SPAWNER_OT_genericText, Operator):
+    bl_idname = 'spawner.open_blend'
+    bl_label = 'Open/Reload Blend'
+    bl_description = 'Hold Shift to open the selected .blend file, hold Ctrl to reload'
+
+    blend: IntProperty()
+    folder: IntProperty()
+    path: StringProperty(name='Path')
+
+    def invoke(self, context, event):
+        blendPath = Path(str(self.path))
+
+        if (event.ctrl + event.shift + event.alt) > 1:
+            self.text = 'tee hee no'
+            self.icons = 'NONE'
+            self.size='56'
+            self.width = 310
+            return context.window_manager.invoke_props_dialog(self, width=self.width)
+
+        if event.ctrl:
+            for lib in bpy.data.libraries:
+                blendPathLib = Path(bpy.path.abspath(lib.filepath))
+                if blendPathLib == blendPath: lib.reload(); return {'FINISHED'}
+            return {'FINISHED'}
+        
+        if event.shift:
+            import subprocess
+            subprocess.Popen([bpy.app.binary_path, blendPath])
+            return {'FINISHED'}
+        
+        if event.alt:
+            return bpy.ops.spawner.scan(blend=self.blend, folder=self.folder)
+        
+        return context.window_manager.invoke_props_dialog(self, width=self.width)
 
 def draw_item(self:bpy.types.Menu, context):
     layout = self.layout
@@ -792,6 +859,7 @@ classes = [
     SPAWNER_PT_extra_settings,
     SPAWNER_PT_folder_settings,
     SPAWNER_PT_blend_settings,
+    SPAWNER_OT_open_blend,
 ]
 
 def register():
