@@ -586,6 +586,14 @@ To spawn an item, it has to be the active item. This serves as a way of confirmi
             layout.operator('preferences.addon_show', text='Open Preferences').module = base_package
             if not context.preferences.use_preferences_save:
                 layout.operator('wm.save_userpref')
+            layout.separator()
+            op = layout.operator('spawner.textbox', text='Donate')
+            op.text = '''Like the add-on? Consider supporting my work:
+LINK:https://ko-fi.com/hisanimations|NAME:Ko-Fi
+LINK:https://hisanimations.gumroad.com/l/optiploy_thumbnails|NAME:Buy thumbnail preview version'''
+            op.size = '56,56,56'
+            op.icons = 'BLANK1,NONE,NONE'
+            op.width = 350
 
 class mod_saver(Operator):
     def invoke(self, context, event):
@@ -750,6 +758,13 @@ class SPAWNER_OBJECT_UL_List(UIList):
 
 def textBox(self, sentence, icon='NONE', line=56):
     layout = self.box().column()
+    if sentence.startswith('LINK:'):
+        url, name = sentence.split('|')
+        url = url.split('LINK:', maxsplit=1)[1]
+        name = name.split('NAME:', maxsplit=1)[1]
+        #print(url, name)
+        layout.row().operator('wm.url_open', text=name, icon='URL').url = url
+        return None
     sentence = sentence.split(' ')
     mix = sentence[0]
     sentence.pop(0)
@@ -810,7 +825,7 @@ class SPAWNER_OT_genericText(bpy.types.Operator):
     def execute(self, context):
         return {'FINISHED'}
     
-class SPAWNER_OT_open_blend(SPAWNER_OT_genericText, Operator):
+class SPAWNER_OT_open_blend(bpy.types.Operator):
     bl_idname = 'spawner.open_blend'
     bl_label = 'Open/Reload Blend'
     bl_description = 'Hold Shift to open the selected .blend file, hold Ctrl to reload'
@@ -818,6 +833,12 @@ class SPAWNER_OT_open_blend(SPAWNER_OT_genericText, Operator):
     blend: IntProperty()
     folder: IntProperty()
     path: StringProperty(name='Path')
+
+    text: StringProperty(default='')
+    icons: StringProperty()
+    size: StringProperty()
+    width: IntProperty(default=400)
+    url: StringProperty(default='')
 
     def invoke(self, context, event):
         blendPath = Path(str(self.path))
@@ -841,9 +862,19 @@ class SPAWNER_OT_open_blend(SPAWNER_OT_genericText, Operator):
             return {'FINISHED'}
         
         if event.alt:
-            return bpy.ops.spawner.scan(blend=self.blend, folder=self.folder)
+            return bpy.ops.spawner.scan('INVOKE_DEFAULT', blend=self.blend, folder=self.folder)
         
         return context.window_manager.invoke_props_dialog(self, width=self.width)
+    
+    def draw(self, context):
+        sentences = self.text.split('\n')
+        icons = self.icons.split(',')
+        sizes = self.size.split(',')
+        for sentence, icon, size in zip(sentences, icons, sizes):
+            textBox(self.layout, sentence, icon, int(size))
+
+    def execute(self, context):
+        return {'FINISHED'}
 
 def draw_item(self:bpy.types.Menu, context):
     layout = self.layout
