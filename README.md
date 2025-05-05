@@ -1,87 +1,114 @@
-# Intro
-Append and link rigs! Save space like never before! OptiPloy, the Optimized Deployment of rigs (and more) is now here.
+[![thumbnail_new2025](https://github.com/user-attachments/assets/bd212809-7dd3-4208-997c-2d30a9efa44e)](https://www.youtube.com/watch?v=wc7xVZXAwYQ)  
+Click for the video!  
+# ✨ OptiPloy: The Appending/Linking Upgrade
+TL;DR: You WILL save GIGABYTES in storage. Less duplication!
 
-OptiPloy (optimized deployment) can be considered a better alternative to appending and linking rigs, while having the best of both worlds. Appending them for full functionality, and linking all the data that composes the rig to reduce duplication. And that can save a LOT of space.
+OptiPloy introduces a balance between appending and linking, something that has not yet existed as a one-click solution. This is limited to objects and collections.
 
-(Don't have a set of rigs to test it with? Try my TF2 Buildings port! https://drive.google.com/drive/folders/11vyl_97Xy8LE-VPECfLlJ876poRZp6AT?usp=drive_link)
+## 🚀 Key Features
 
-# Here's how to set it up.
-In the preferences, you will find two sections to add .blend files. Individually or by a folder of them. Now there are two things worth noting. OptiPloy will only spawn objects or collections, *if* they have been marked as assets. And two, sub-folders will NOT be parsed.
+- **Hybrid Importing**  
+  Choose from 13 data types to localize or to leave linked to the source file. Object and Collection types are enabled by default.
+- **Fine‑Grained Control**  
+  Save importing preferences globally, per-folder, or per-blend.
+- **One‑Click Workflow**  
+  Spawn assets directly from the side‑panel without manual linking/appending.  
+- **No Duplicating Boneshapes**  
+  Boneshapes do *not* duplicate, not even if you choose to localize armatures.
+- **Auto-Execute Scripts & Scriptable Hook**  
+  OptiPloy will automatically execute data blocks associated with your import. This ensures, for example, that Rigify UI scripts work right off the bat. 
+  
+  For your own scripts, access newly spawned objects via `bpy.context.scene['new_spawn']`
+- **And so much more! Really! Scroll down for the full list!**
 
-Along with folders, you may also add "Categories" by holding Shift while adding a folder. For the sake of organization, Categories allow you to group together .blend files despite not being in the same folder.
+## ❔ Why not just append or link?
+Refer to the handy table:
+| Method      | Pros                         | Cons                                 |
+| ----------- | ---------------------------- | ------------------------------------ |
+| Appending   | Instant copy, fully editable | Duplicates file size with each paste |
+|             | Very easy                    | Easy to start bad habits for new users |
+| Linking     | Minimal storage, just recycling | Requires overrides to even slightly edit   |
+|             | Able to update data from source file | Can be tedious to do right |
+| **OptiPloy**| ✔️ Best of both              | —                                    |
 
-Once you have a .blend file prepared with a rig under a collection marked as an asset, you may now add that .blend file to OptiPloy. It will automatically be scanned for spawnable items, which you can spawn through the OptiPloy tab in the 3D Viewport.
+## 📥 Quick Start
 
-# How does OptiPloy work?
-Through the `bpy.data.libraries.load` feature, OptiPloy links an object/collection, applies library overrides over hierarchy, then localizes it as much as the user wishes. This is crucial for a fast-working spawning tool that compromises between the benefits of localized data and linked data. And since the localization options can be entry-specific, I have no doubt this could be a user-favorite when it comes to working with the tens to hundreds of rigs they frequently use.
+1. **Install**  
+   - Blender 4.1-: *Edit → Preferences → Add-ons → Install → Select* `optiploy.zip`
 
-# Blender Asset Library Functionality
-When linking collections or objects through the asset browser, you can post-optimize them with OptiPloy using the global preferences. You can find this `Optimize with OptiPloy` operator in `Object > Optimize with OptiPloy` or by right-clicking an ID in the Outliner.
+   - Blender 4.2+: *Edit → Preferences → Get Extensions → Search* "OptiPloy"  
+   or
+   - *Edit → Preferences → Add-ons → Top-right dropdown menu → Install from disk... → Select* `optiploy.zip`
 
-## Linked vs. Library Overrides vs. Localized
-When you link data from another file, you cannot edit that linked data because it is not yours. Everything about it comes from another file, therefore to make changes, you must edit in that source file.
+2. **Prepare .blend, Mark Assets**
+   - Prepare any `.blend` files you plan to use by marking its Objects or Collections as assets
 
-Applying Library Overrides will let you edit *some* attributes on that data, but not everything. Library overrides is like putting data in a state between linked and localized. ([See Blender's explanation](https://docs.blender.org/manual/en/latest/files/linked_libraries/library_overrides.html))
+3. **Configure Add-on**  
+   - *Edit → Preferences → Add-ons → OptiPloy*.  
+   - Add `.blend` files individually or by the folder.  
+    (Tip: Shift‑click **+** to create a category folder.)
+   - Files will be automatically scanned for assets to spawn.
 
-Localizing data will make a fully local copy of that data. Depending on what is being localized, it *can* take up more storage, but you will have no limit on what you can edit.
+4. **Spawn Assets**  
+   - *3D Viewport → Side-panel → OptiPloy*  
+   - Search through `.blend` files to spawn assets!
 
-It's nice to have local copies of what you know you'll want to edit, while having the rest of the data linked to the source file.
+## ⚙️ Detailed Usage
 
-## Why would I want to localize data?
-Localizing data allows you to edit the properties on that data to the fullest extent. For example, you are able to enter edit mode on a localized mesh, but not on a linked or overridden mesh. In OptiPloy, collections and objects are localized by default. But if a user knows they would like to edit the mesh of an object in the future, that user should have `Localize Meshes` enabled by default.
+### Preferences Panel  
+- **Mounted .blend Files**: Manage your search folders and .blend files, and see what assets are added.  
+- **Update Catalogs**: Update your .blend files by using the `Scan` operator.
 
-However, leaving things unlocalized gives users a chance to modify the data in the source file with the changes updating in any other file, so long as the changed attributes aren't overridden. This is great for mass modification in case a user errs.
+### Side-Panel
+- Switch between the `.blend`, `Folder`, and `Tools` view mode
+  - You can set the import options globally in the `Tools` view, or you can set them per-folder or per-blend through the <img src="https://raw.githubusercontent.com/Shrinks99/blender-icons/refs/heads/main/blender-icons/settings.svg" height=23> gear icons.
+- Browse through the list of assets and spawn them.
+- **RED-highlighted `.blend` Multi-tool**: An operator with the <img src="https://raw.githubusercontent.com/Shrinks99/blender-icons/refs/heads/main/blender-icons/blender.svg" height=23> icon exists to reload, open, or re-scan the active .blend file.
+  - Hold `CTRL` to reload the .blend file as a library
+  - Hold `SHIFT` to open the .blend file in a new instance of Blender
+  - Hold `ALT`to re-scan the .blend file in OptiPloy
 
-Spawning the same data with different settings applied will not localize pre-existing data, so long as the data is that of collections, objects, materials, or any other object data type. (see [object data types](https://docs.blender.org/api/current/bpy_types_enum_items/object_type_items.html#rna-enum-object-type-items))
-
-## To scripters
-OptiPloy assigns newly spawned items to a globally accessible variable, `context.scene['new_spawn']`. This gives you an opportunity to write a script to further modify data when OptiPloy executes any attached script. Say for example, you have a ragdoll rig and you need to initialize the Rigid Body World and assign collisions and constraints to collections used by the RBW.
-
-OptiPloy will also record key modifiers as custom properties on the scene for scripts to take advantage of. The custom properties are aptly named:
-
-`context.scene["key_ctrl"]` for Control
-`context.scene["key_shift"]` for Shift
-`context.scene["key_alt"]` for Alt
-
-These custom properties will be deleted after the script execution stage.
-
-# Last thing
-In the tools view mode in the OptiPloy tab, you can choose whether to localize meshes, materials, images, node groups, and armature data by default. But if this data gets localized despite having these options disabled, that means they are localized because another asset requires them to be.
-
-In the `Tools` view mode in the 3D viewport, you can choose which objects types should be localized or not. Any folder/blend entry can override these options by enabling so in their settings panel.
-
-Here are the list of IDs that can be localized/overridden:
-
+### Localization Options  
+In the `Tools` view mode, you may choose to localize any of the following data types:
 ```
-bpy.types.Collection,
-bpy.types.Object,
-bpy.types.Mesh,
-bpy.types.Material,
-bpy.types.SurfaceCurve,
-bpy.types.Light,
-bpy.types.Curve,
-bpy.types.GreasePencil,
-bpy.types.MetaBall,
-bpy.types.TextCurve,
-bpy.types.Volume,
-bpy.types.Armature,
+bpy.types.Collection
+bpy.types.Object
+bpy.types.Mesh
+bpy.types.Material
+bpy.types.SurfaceCurve
+bpy.types.Light
+bpy.types.Curve
+bpy.types.GreasePencil
+bpy.types.MetaBall
+bpy.types.TextCurve
+bpy.types.Volume
+bpy.types.Armature
 bpy.types.Camera
 ```
+Setting these options affects imports as a whole, but localization options can also be set per-blend or per-folder.
 
-# FAQ
-- **IDs like meshes and materials are duplicating when I spawn the same item more than once, despite having the localizing options off. What's going on?**
-  - This is a good question. "Data Isolation" was a concept I struggled with when making OptiPloy. 
-  
-    Normally, when you spawn the same item again with more localizing options enabled, the data from the pre-existing item would get localized along with this new instance. To counteract this, a lot of supported IDs are given library overrides to put them in a state between linked and fully localized. While this does result in duplication, it doesn't use as much storage as it *could*. And it successfully isolates the data tied to the instance of that item, mostly preventing further modification from later spawns.
+### Asset Browser Integration
+OptiPloy has an operator built-in to optimize Collections or Objects linked through the Asset Browser.
+- Viewport / Operator Search Menu  
+  Search for `Optimize with OptiPloy` and execute the operator
+- Outliner
+  Select the IDs you wish to localize (collections/objects), right click, and select `Optimize with OptiPloy`  
 
-    Theoretically, this data isolation can be done without library overrides. In practice, I've achieved this by having another instance of Blender load, modify, and save the data for the main instance to use in real time. Despite how interesting this concept was, I doubt users would be happy with a background instance of Blender running for each main instance. Another way this could be achieved is by using the `bpy.types.BlendData.temp_data()` function to act as the "second instance", but it would cause Blender to crash whenever linking data in this temp_data context. If it didn't crash, it would always prompt the user with a "corrupt data" warning.
+Again, for this to work, the assets need to be *linked* through the asset browser, not appended.
 
-- **I get tons of "bke.liboverride" errors when spawning something!**
-  - This happens when localizing collections, objects, or possibly more, if they were given library overrides over hierarchy. However, I feel that these errors are of empty meaning and that Blender sorts it out itself. All the data is fine when saving and reloading a file.
+## 🖥️ For Developers
+### Scripting Hook
+OptiPloy automatically executes any text block associated with an import. You can access the data of the imported object through `bpy.context.scene['new_spawn']` to perform further adjustments or optimizations.
+### Using Key Modifiers
+Incorporate key modifiers (`CTRL`, `SHIFT`, `ALT`) into your scripts by accessing
+```
+bpy.context.scene['key_ctrl']
+bpy.context.scene['key_shift']
+bpy.context.scene['key_alt']
+```
 
-# Donate
-If this rig saves you a bunch of space, and time, you just might consider supporting!
-https://ko-fi.com/hisanimations
+## Donate
+If you find that this addon has saved you time and storage, you may consider supporting my work.
 
-# Credits
-Thank you to LetumGo ( https://www.youtube.com/@Letumgo ) for helping with the logo!
+[Ko-Fi Link](https://ko-fi.com/hisanimations)  
+[Buy the version with thumbnail previews](hisanimations.gumroad.com/l/optiploy_thumbnails)
