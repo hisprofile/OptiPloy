@@ -8,7 +8,7 @@ OptiPloy introduces a balance between appending and linking, something that has 
 ## 🚀 Key Features
 
 - **Hybrid Importing**  
-  Choose from 13 data types to localize or to leave linked to the source file. Object and Collection types are enabled by default.
+  Choose from 15 data types to localize or to leave linked to the source file. Object and Collection types are enabled by default.
 - **Fine‑Grained Control**  
   Save importing preferences globally, per-folder, or per-blend.
 - **One‑Click Workflow**  
@@ -106,7 +106,39 @@ bpy.context.scene['key_ctrl']
 bpy.context.scene['key_shift']
 bpy.context.scene['key_alt']
 ```
-
+## Full Features
+- **Hybrid Importing**  
+  Choose from 15 data types to localize or to leave linked to the source file. Object and Collection types are enabled by default.
+- **Fine‑Grained Control**  
+  Save importing preferences globally, per-folder, or per-blend.
+- **One‑Click Workflow**  
+  Spawn assets directly from the side‑panel without manual linking/appending.  
+- **No Duplicating Boneshapes**  
+  Boneshapes do *not* duplicate, not even if you choose to localize armatures.
+- **Auto-Execute Scripts & Scriptable Hook**  
+  OptiPloy will automatically execute data blocks associated with your import. This ensures, for example, that Rigify UI scripts work right off the bat. 
+- **.blend File Multi-tool**  
+  Use CTRL, SHIFT, or ALT on the red Blender icon to reload, open, or re-scan the selected .blend file
+- **Full Driver Functionality**  
+  Despite all the localizing that takes place, drivers never lose their targets as they shift from linked to localized.
+- **Hierarchal Localizing**  
+  OptiPloy recursively builds a hierarchy of levels that IDs are referenced at, and localizes going down this hierarchy. This ensures no breakage when localizing.
+- **Automatic Library Overrides**  
+  Unlocalized IDs are given automatic library overrides to make some wiggle room for what can be edited.  
+  To edit custom properties, make sure `Library Overridable` is enabled in its options.
+- **Fun for Coders**  
+  During the script execution stage at the end of the importing process, you can access the new import through `bpy.context.scene['new_spawn']`, letting you do further adjustments after it has been deployed.  
+  Scripters can incorporate `CTRL`, `SHIFT`, and `ALT` into their scripts by using:
+  ```
+  bpy.context.scene['key_ctrl']
+  bpy.context.scene['key_shift']
+  bpy.context.scene['key_alt']
+  ```  
+  Attach text blocks to an import by assigning them as a custom property to any ID associated with the import.
+- **Asset Library Integration**  
+  An operator named `Optimize with OptiPloy` exists to optimize assets linked through the asset browser.  
+  Viewport: Object → Optimize with OptiPloy  
+  Outliner: Right-click → Optimize with OptiPloy  
 ## Donate
 If you find that this addon has saved you time and storage, you may consider supporting my work.
 
