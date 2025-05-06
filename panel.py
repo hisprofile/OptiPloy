@@ -590,7 +590,7 @@ To spawn an item, it has to be the active item. This serves as a way of confirmi
             op = layout.operator('spawner.textbox', text='Donate')
             op.text = '''Like the add-on? Consider supporting my work:
 LINK:https://ko-fi.com/hisanimations|NAME:Ko-Fi
-LINK:https://hisanimations.gumroad.com/l/optiploy_thumbnails|NAME:Buy thumbnail preview version'''
+LINK:https://hisanimations.gumroad.com/l/optiploy_pro|NAME:Buy OptiPloy Pro'''
             op.size = '56,56,56'
             op.icons = 'BLANK1,NONE,NONE'
             op.width = 350
