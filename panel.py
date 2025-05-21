@@ -739,7 +739,7 @@ class SPAWNER_OT_POST_OPTIMIZE(mod_saver):
 
             if not False in conditions_for_instance:
                 col = id.instance_collection
-                return_val = load_data(self, context, ind_prefs=prefs, col=col)
+                return_val = load_data(self, context, scene_viewlayer, ind_prefs=prefs, col=col)
                 if return_val == {'FINISHED'}:
                     bpy.data.objects.remove(id)
             elif not False in conditions_for_col:
