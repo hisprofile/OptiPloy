@@ -493,9 +493,16 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
     blend: BoolProperty(default=True)
     folder: BoolProperty(default=False)
     filter_glob: StringProperty(default='*.blend')
+    execute_only: BoolProperty(default=False)
+    category: BoolProperty(default=False)
+    category_name: StringProperty(default='')
+    folder_select: IntProperty(default=-1)
     _shift = None
 
     def invoke(self, context, event):
+        if self.execute_only:
+            self.execute_only = False
+            return self.execute(context)
         self._shift = event.shift
         if self.folder and self._shift:
             return self.execute(context)
@@ -509,6 +516,9 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
                 self.report({'ERROR'}, f'{self.filepath} does not exist!')
                 return {'CANCELLED'}
             folder = prefs.folders[prefs.folder_index]
+            if self.folder_select > -1:
+                folder = prefs.folders[self.folder_select]
+                self.folder_select = -1
             new_entry = folder.blends.add()
             new_entry.filepath = self.filepath
             name = os.path.basename(self.filepath).rsplit('.', maxsplit=1)[0]
@@ -529,9 +539,13 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
                 self.report({'ERROR'}, f'{self.directory} does not exist!')
                 return {'CANCELLED'}
             new_entry = prefs.folders.add()
-            if self._shift:
+            if self._shift or self.category:
+                new_name = 'New Category'
+                if self.category:
+                    new_name = self.category_name
+                self.category = False
                 new_entry.category = True
-                new_entry.name = 'New Category'
+                new_entry.name = new_name
             else:
                 new_entry.filepath = self.directory
                 directory: str = self.directory

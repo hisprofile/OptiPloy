@@ -160,33 +160,99 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 
     )
 
+    additional = list()
+    prime_override = dict()
+
+    def override_order(reference):
+        rev_l = list(reversed(sorted(list(
+                rev_leveled_map.items()
+            ) + additional, key=lambda a: a[1])))
+
+        for ID, _ in rev_l:
+            ID: bpy.types.ID
+            context.scene['test_prop'] = ID
+            possible_override = ID.override_create(remap_local_usages=True)
+            del context.scene['test_prop']
+            if possible_override != None:
+                drivers = getattr(getattr(getattr(possible_override, 'shape_keys', None),'animation_data', None),'drivers', None)
+                if drivers:
+                    [setattr(target, 'id', possible_override) if target.id == ID else None for driver in drivers for variable in driver.driver.variables for target in variable.targets]
+                if (prime := prime_override.get(ID)) != None:
+                    possible_override.user_remap(prime)
+                    bpy.data.batch_remove({possible_override})
+                else:
+                    prime_override[ID] = possible_override
+
+            if ID == reference:
+                old, spawned = ID, possible_override
+        return spawned
+
+    def recurse2(ID, level=0, line:list=[]):
+        if rev_leveled_map.get(ID, -1) >= level: return
+        if type(ID) != bpy.types.Key:
+            rev_leveled_map[ID] = level
+        line = list(line)
+        line.append(ID)
+        '''
+
+        This function was the missing piece of a puzzle. OptiPloy is complete now. No more errors when spawning.
+        I'd been searching for this functionality for EVER. Finally found it, without AI and without searching.
+        I feel like I have to flaunt it, idk
+        I know how simple it is, but what it does is so crucial
+
+        UPDATE:
+        I was so wrong when I wrote that and I shattered into pieces when I realized it didn't work.
+        Now it does!
+        The old version that message is referring to did not account for loops in the user hierarchy. This one does.
+        If ID2 is referencing/using ID1 but has already been in the "line", we need to stop here.
+        So instead of infinitely looping, lets mention ID1 again in the overriding process specifically for ID2.
+        So after the duplicate ID1 has been overridden, we can replace it with the original ID1 that was overridden.
+
+        We can't replace the linked IDs with the overridden IDs or else the overridden IDs will reference themselves.
+        THAT causes a data corruption error. But that's not happening in this case.
+
+        Now there are zero errors :)
+
+        '''
+        
+        refs = bpy.data.user_map().get(ID, [])
+        # refs is the list of IDs that are using the given ID
+        for ref in refs:
+            if ref == ID: continue
+            if type(ref) == bpy.types.Key:
+                if getattr(ID, 'shape_keys', None) == ID: continue
+            if getattr(ref, 'library', None) == None: continue
+            if ID in refd_by[ref]:
+                continue
+            refd_by[ID].add(ref)
+            if ref in line:
+                additional.append((ID, line.index(ref)-1))
+                continue
+
+            recurse2(ref, level + 1, line)
+
     if obj:
         if not obj in list(view_layer.objects):
             activeCol.objects.link(obj)
-        new_obj = obj.override_hierarchy_create(scene, view_layer, reference=None, do_fully_editable=True)
-        for user_col in obj.users_collection:
-            if user_col.library: continue
-            user_col.objects.unlink(obj)
-        obj = new_obj
-        if obj == None: return {'CANCELLED'}
-        spawned = obj
+        parent = obj
+        while parent.parent:
+            parent = parent.parent
+            if parent in list(view_layer.objects): continue
+            activeCol.objects.link(parent)
+        rev_leveled_map[obj] = 0
+        recurse2(obj, 1)
+        spawned = override_order(obj)
 
     if col:
         if not col in scene.collection.children_recursive:
             scene.collection.children.link(col)
-        col_users = bpy.data.user_map(subset=[col])[col]
-        new_col = col.override_hierarchy_create(scene, view_layer, reference=None, do_fully_editable=True)
-        if new_col == None: return {'CANCELLED'}
-        for user in col_users:
-            if isinstance(user, bpy.types.Scene):
-                if col in list(user.collection.children):
-                    user.collection.children.unlink(col)
-            if isinstance(user, bpy.types.Collection):
-                if col in list(user.children):
-                    user.children.unlink(col)
-        col = new_col
-        spawned = col
+        recurse2(col, 0, [])
+        for object in list(col.all_objects):
+            recurse2(object, 0, [])
+        spawned = override_order(col)
         
+    rev_leveled_map.clear()
+    refd_by.clear()
     id_ref = get_id_reference_map()
     id_ref = get_all_referenced_ids(spawned, id_ref)
 
@@ -468,8 +534,8 @@ class SPAWNER_PT_panel(Panel):
             if not len(prefs.blends):
                 layout.row().label(text='Add a .blend file in the preferences to get started!')
                 return
-            
-            blend = prefs.blends[int(props.selected_blend)]
+            blend_ind = int(props.selected_blend or '0')
+            blend = prefs.blends[blend_ind]
 
             row = layout.row()
             row.alert = True
@@ -483,7 +549,7 @@ Don't worry about the button being red. It's only meant to call your attention.'
             op.width=350
             op.path = blend.filepath
             op.folder = -1
-            op.blend = int(props.selected_blend)
+            op.blend = int(props.selected_blend or '0')
 
             row = row.row()
             row.alert = False
@@ -494,17 +560,28 @@ Don't worry about the button being red. It's only meant to call your attention.'
             if not len(prefs.folders):
                 layout.row().label(text='Add a folder of .blend files in the preferences to get started!')
                 return
-            
+            folder_ind = int(props.selected_folder or '0')
+            folder = prefs.folders[folder_ind]
+
             row = layout.row()
+            row.alert=True
+            op = row.operator('spawner.open_folder', text='', icon='FILE_FOLDER')
+            op.text = '''Hold ALT to re-scan the .blend file in OptiPloy.
+Don't worry about the button being red. It's only meant to call your attention.'''
+            op.icons='EVENT_ALT,QUESTION'
+            op.size='56,56'
+            op.width=350
+            op.folder = folder_ind
             row = row.row()
-            row.label(text='', icon='FILE_FOLDER')
+            row.alert=False
+            #row.label(text='', icon='FILE_FOLDER')
             row.prop(props, 'selected_folder', text='')
             row.popover('SPAWNER_PT_folder_settings', text='', icon='SETTINGS')
-            folder = prefs.folders[int(props.selected_folder)]
-            blend = folder.blends[int(folder.selected_blend)]
             if not len(folder.blends):
                 layout.row().label(text='This folder has no .blend files marked! Has it been scanned?')
                 return None
+            blend_ind = int(folder.selected_blend or '0')
+            blend = folder.blends[blend_ind]
             row = layout.row()
             row.alert = True
             #row.label(text='', icon='BLENDER')
@@ -788,62 +865,29 @@ def textBox(self, sentence, icon='NONE', line=56):
                 return None
 
 
-class SPAWNER_OT_genericText(bpy.types.Operator):
+class SPAWNER_OT_genericText(generictext):
     bl_idname = 'spawner.textbox'
     bl_label = 'Hints'
     bl_description = 'A window will display any possible questions you have'
 
-    text: StringProperty(default='')
-    icons: StringProperty()
-    size: StringProperty()
-    width: IntProperty(default=400)
-    url: StringProperty(default='')
+class SPAWNER_OT_open_blend(generictext):
 
-    def invoke(self, context, event):
-        if not getattr(self, 'prompt', True):
-            return self.execute(context)
-        if event.shift and self.url != '':
-            bpy.ops.wm.url_open(url=self.url)
-            return self.execute(context)
-        self.invoke_extra(context, event)
-        return context.window_manager.invoke_props_dialog(self, width=self.width)
-    
-    def invoke_extra(self, context, event):
-        pass
-    
-    def draw(self, context):
-        sentences = self.text.split('\n')
-        icons = self.icons.split(',')
-        sizes = self.size.split(',')
-        for sentence, icon, size in zip(sentences, icons, sizes):
-            textBox(self.layout, sentence, icon, int(size))
-        self.draw_extra(context)
-
-    def draw_extra(self, context):
-        pass
-
-    def execute(self, context):
-        return {'FINISHED'}
-    
-class SPAWNER_OT_open_blend(bpy.types.Operator):
     bl_idname = 'spawner.open_blend'
-    bl_label = 'Open/Reload Blend'
-    bl_description = 'Hold Shift to open the selected .blend file, hold Ctrl to reload'
+    bl_label = 'Blend Multi-Tool'
+    bl_description = 'Hold Shift to open the selected .blend file, hold Ctrl to reload, hold Alt to re-scan'
 
     blend: IntProperty()
     folder: IntProperty()
     path: StringProperty(name='Path')
 
-    text: StringProperty(default='')
-    icons: StringProperty()
-    size: StringProperty()
-    width: IntProperty(default=400)
-    url: StringProperty(default='')
+    blend_path_add: StringProperty(default='', subtype='FILE_PATH')
+    use_current_blend:BoolProperty(default=False)
 
     def invoke(self, context, event):
         blendPath = Path(str(self.path))
 
         if (event.ctrl + event.shift + event.alt) > 1:
+            return {'CANCELLED'}
             self.text = 'tee hee no'
             self.icons = 'NONE'
             self.size='56'
@@ -866,15 +910,104 @@ class SPAWNER_OT_open_blend(bpy.types.Operator):
         
         return context.window_manager.invoke_props_dialog(self, width=self.width)
     
-    def draw(self, context):
-        sentences = self.text.split('\n')
-        icons = self.icons.split(',')
-        sizes = self.size.split(',')
-        for sentence, icon, size in zip(sentences, icons, sizes):
-            textBox(self.layout, sentence, icon, int(size))
 
-    def execute(self, context):
-        return {'FINISHED'}
+    def draw_extra(self, context):
+        layout = self.layout
+        layout.separator()
+        col = layout.column()
+        main_row = col.row()
+        r = main_row.row()
+        r.alignment = 'LEFT'
+        r.label(text='Add .blend')
+        r = main_row.row()
+        r.alignment = 'RIGHT'
+        r.enabled = bpy.data.is_saved
+        r.prop(self, 'use_current_blend', text='Add Active .blend')
+        box = col.box()
+        col_box = box.column()
+        row = col_box.row()
+        row.prop(self, 'blend_path_add', text='Filepath')
+        row.enabled = 1-(self.use_current_blend and bpy.data.is_saved)
+        op = col_box.operator('spawner.add_entry')
+        op.filepath = bpy.data.filepath if (self.use_current_blend and bpy.data.is_saved) else bpy.path.abspath(self.blend_path_add)
+        op.execute_only = True
+        op.blend = True
+        op.folder = bool(self.folder+1)
+        op.folder_select = self.folder
+    
+class SPAWNER_OT_open_folder(generictext):
+
+    bl_idname = 'spawner.open_folder'
+    bl_label = 'Folder Multi-Tool'
+    bl_description = 'Hold Shift to open the selected folder, hold Ctrl to reload, hold Alt to re-scan'
+
+    folder: IntProperty()
+    path: StringProperty(name='Path')
+
+    folder_path_add: StringProperty(default='', subtype='DIR_PATH')
+    add_category: BoolProperty(default=False)
+    category_name: StringProperty(default='New Category')
+
+    def invoke(self, context, event):
+        blendPath = Path(str(self.path))
+        self.category_name = 'New Category'
+
+        if (event.ctrl + event.shift + event.alt) > 1:
+            return {'CANCELLED'}
+            self.text = 'tee hee no'
+            self.icons = 'NONE'
+            self.size='56'
+            self.width = 310
+            return context.window_manager.invoke_props_dialog(self, width=self.width)
+
+        if event.ctrl:
+            #for lib in bpy.data.libraries:
+            #    blendPathLib = Path(bpy.path.abspath(lib.filepath))
+            #    if blendPathLib == blendPath: lib.reload(); return {'FINISHED'}
+            return {'FINISHED'}
+        
+        if event.shift:
+            #import subprocess
+            #subprocess.Popen([bpy.app.binary_path, blendPath])
+            return {'FINISHED'}
+        
+        if event.alt:
+            return bpy.ops.spawner.scan('INVOKE_DEFAULT', blend=-1, folder=self.folder)
+        
+        return context.window_manager.invoke_props_dialog(self, width=self.width)
+    
+
+    def draw_extra(self, context):
+        layout = self.layout
+        layout.separator()
+        col = layout.column()
+        main_row = col.row()
+        r = main_row.row()
+        r.alignment = 'LEFT'
+        r.label(text='Add Folder')
+        r = main_row.row()
+        r.alignment = 'RIGHT'
+        r.prop(self, 'add_category', text='Add Category')
+        box = col.box()
+        col_box = box.column()
+        row = col_box.row()
+        if self.add_category:
+            r = row.row()
+            r.alignment = 'LEFT'
+            r.label(text='Category Name:')
+            r = row.row()
+            r.alignment = 'RIGHT'
+            row.prop(self, 'category_name', text='')
+        else:
+            row.prop(self, 'folder_path_add', text='Filepath')
+        #row.enabled = 1-self.add_category
+        op = col_box.operator('spawner.add_entry', text='Add Folder Entry')
+        op.directory = self.folder_path_add
+        op.execute_only = True
+        op.blend = False
+        op.folder = True
+        op.category = self.add_category
+        op.category_name = self.category_name
 
 def draw_item(self:bpy.types.Menu, context):
     layout = self.layout
@@ -891,6 +1024,7 @@ classes = [
     SPAWNER_PT_folder_settings,
     SPAWNER_PT_blend_settings,
     SPAWNER_OT_open_blend,
+    SPAWNER_OT_open_folder
 ]
 
 def register():
