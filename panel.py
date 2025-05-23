@@ -250,7 +250,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         for object in list(col.all_objects):
             recurse2(object, 0, [])
         spawned = override_order(col)
-        
+
     rev_leveled_map.clear()
     refd_by.clear()
     id_ref = get_id_reference_map()
@@ -667,7 +667,7 @@ To spawn an item, it has to be the active item. This serves as a way of confirmi
             op = layout.operator('spawner.textbox', text='Donate')
             op.text = '''Like the add-on? Consider supporting my work:
 LINK:https://ko-fi.com/hisanimations|NAME:Ko-Fi
-LINK:https://hisanimations.gumroad.com/l/optiploy_pro|NAME:Buy OptiPloy Pro'''
+LINK:https://superhivemarket.com/products/optiploy-pro|NAME:Buy OptiPloy Pro on Superhive'''
             op.size = '56,56,56'
             op.icons = 'BLANK1,NONE,NONE'
             op.width = 350
