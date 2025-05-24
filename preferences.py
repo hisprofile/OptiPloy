@@ -87,6 +87,9 @@ class blends(PropertyGroup):
     localize_volumes:       BoolProperty(default=False, name='Localize volumes', options=set())
     localize_grease_pencil: BoolProperty(default=False, name='Localize grease pencil', options=set())
 
+    
+    importer: EnumProperty(items=(('FAST', 'Fast', 'Fast importer'), ('STABLE', 'Stable', 'Stable importer')), name='Importer', description='Which importer to use', default='STABLE')
+
 class folders(PropertyGroup):
     blends: CollectionProperty(type=blends, name='.blend files', description='List of .blend files under this folder.')
     blend_index: IntProperty(default=0)
@@ -113,6 +116,8 @@ class folders(PropertyGroup):
     localize_surface_curves:BoolProperty(default=False, name='Localize surface curves', options=set())
     localize_volumes:       BoolProperty(default=False, name='Localize volumes', options=set())
     localize_grease_pencil: BoolProperty(default=False, name='Localize grease pencil', options=set())
+    
+    importer: EnumProperty(items=(('FAST', 'Fast', 'Fast importer'), ('STABLE', 'Stable', 'Stable importer')), name='Importer', description='Which importer to use', default='STABLE')
 
 class BLENDS_SPAWNER_UL_List(UIList):
     def draw_item(self, context,
@@ -227,6 +232,8 @@ class blendentriespref(AddonPreferences):
     localize_grease_pencil: BoolProperty(default=False, name='Localize grease pencil', options=set())
      
     execute_scripts: BoolProperty(default=True, name='Execute Attached Scripts', options=set())
+
+    importer: EnumProperty(items=(('FAST', 'Fast', 'Fast importer'), ('STABLE', 'Stable', 'Stable importer')), name='Importer', description='Which importer to use', default='STABLE')
 
     def draw(self, context):
         layout = self.layout

@@ -213,6 +213,9 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 
         Now there are zero errors :)
 
+        UPDATE 2 may 24 2025:
+        sisyphean struggle
+
         '''
         
         refs = bpy.data.user_map().get(ID, [])
@@ -234,22 +237,50 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
     if obj:
         if not obj in list(view_layer.objects):
             activeCol.objects.link(obj)
-        parent = obj
-        while parent.parent:
-            parent = parent.parent
-            if parent in list(view_layer.objects): continue
-            activeCol.objects.link(parent)
-        rev_leveled_map[obj] = 0
-        recurse2(obj, 1)
-        spawned = override_order(obj)
+        if ind_prefs.importer == 'STABLE':
+            new_obj = obj.override_hierarchy_create(scene, view_layer, reference=None, do_fully_editable=True)
+            for user_col in obj.users_collection:
+                if user_col.library: continue
+                user_col.objects.unlink(obj)
+            obj = new_obj
+            if obj == None: return {'CANCELLED'}
+            spawned = obj
+        else:
+            parent = obj
+            while parent.parent:
+                parent = parent.parent
+                if parent in list(view_layer.objects): continue
+                activeCol.objects.link(parent)
+            rev_leveled_map[obj] = 0
+            recurse2(obj, 1)
+            spawned = override_order(obj)
+            rev_leveled_map.clear()
+            refd_by.clear()
 
     if col:
         if not col in scene.collection.children_recursive:
             scene.collection.children.link(col)
-        recurse2(col, 0, [])
-        for object in list(col.all_objects):
-            recurse2(object, 0, [])
-        spawned = override_order(col)
+        if ind_prefs.importer == 'STABLE':
+            col_users = bpy.data.user_map(subset=[col])[col]
+            new_col = col.override_hierarchy_create(scene, view_layer, reference=None, do_fully_editable=True)
+            if new_col == None: return {'CANCELLED'}
+            for user in col_users:
+                if isinstance(user, bpy.types.Scene):
+                    if col in list(user.collection.children):
+                        user.collection.children.unlink(col)
+                if isinstance(user, bpy.types.Collection):
+                    if user.library: continue
+                    if col in list(user.children):
+                        user.children.unlink(col)
+            col = new_col
+            spawned = col
+        else:
+            recurse2(col, 0, [])
+            for object in list(col.all_objects):
+                recurse2(object, 0, [])
+            spawned = override_order(col)
+            rev_leveled_map.clear()
+            refd_by.clear()
 
     rev_leveled_map.clear()
     refd_by.clear()
@@ -459,6 +490,12 @@ class SPAWNER_PT_folder_settings(Panel):
         folder = prefs.folders[int(props.selected_folder)]
         layout.prop(folder, 'override_behavior')
         box = layout.box()
+        r = box.row()
+        r.label(text = 'Importer')
+        r.operator('wm.url_open', text='', icon='QUESTION').url = os.path.join(os.path.dirname(__file__), 'htmls', 'importers.html')
+        box.row().prop(folder, 'importer', expand=True)
+        box.enabled = folder.override_behavior
+        box = layout.box()
         box.enabled = folder.override_behavior
         for i in options:
             box.prop(folder, i)
@@ -487,6 +524,12 @@ class SPAWNER_PT_blend_settings(Panel):
         row = layout.row()
         row.prop(blend, 'override_behavior')
         #row.enabled = getattr(folder, 'override_behavior', True)
+        box = layout.box()
+        box.enabled = blend.override_behavior
+        r = box.row()
+        r.label(text = 'Importer')
+        r.operator('wm.url_open', text='', icon='QUESTION').url = os.path.join(os.path.dirname(__file__), 'htmls', 'importers.html')
+        box.row().prop(blend, 'importer', expand=True)
         box = layout.box()
         box.enabled = blend.override_behavior
         for i in options:
@@ -646,6 +689,11 @@ To spawn an item, it has to be the active item. This serves as a way of confirmi
                 op.width=350
 
         if props.view == 'TOOLS':
+            col = layout.column()
+            r = col.row()
+            r.label(text='Importer')
+            r.operator('wm.url_open', text='', icon='QUESTION').url = os.path.join(os.path.dirname(__file__), 'htmls', 'importers.html')
+            col.box().row().prop(prefs, 'importer', expand=True)
             layout.label(text='Post-Processing')
             box = layout.box()
             box.prop(prefs, 'to_cursor')
@@ -864,6 +912,38 @@ def textBox(self, sentence, icon='NONE', line=56):
                 layout.row().label(text=mix)
                 return None
 
+class generictext(bpy.types.Operator):
+    text: StringProperty(default='')
+    icons: StringProperty()
+    size: StringProperty()
+    width: IntProperty(default=400)
+    url: StringProperty(default='')
+
+    def invoke(self, context, event):
+        if not getattr(self, 'prompt', True):
+            return self.execute(context)
+        if event.shift and self.url != '':
+            bpy.ops.wm.url_open(url=self.url)
+            return self.execute(context)
+        self.invoke_extra(context, event)
+        return context.window_manager.invoke_props_dialog(self, width=self.width)
+    
+    def invoke_extra(self, context, event):
+        pass
+    
+    def draw(self, context):
+        sentences = self.text.split('\n')
+        icons = self.icons.split(',')
+        sizes = self.size.split(',')
+        for sentence, icon, size in zip(sentences, icons, sizes):
+            textBox(self.layout, sentence, icon, int(size))
+        self.draw_extra(context)
+
+    def draw_extra(self, context):
+        pass
+
+    def execute(self, context):
+        return {'FINISHED'}
 
 class SPAWNER_OT_genericText(generictext):
     bl_idname = 'spawner.textbox'
