@@ -167,6 +167,9 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         rev_l = list(reversed(sorted(list(
                 rev_leveled_map.items()
             ) + additional, key=lambda a: a[1])))
+        
+        #print(rev_l)
+        #print(additional)
 
         for ID, _ in rev_l:
             ID: bpy.types.ID
@@ -179,9 +182,12 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
                     [setattr(target, 'id', possible_override) if target.id == ID else None for driver in drivers for variable in driver.driver.variables for target in variable.targets]
                 if (prime := prime_override.get(ID)) != None:
                     possible_override.user_remap(prime)
+                    if isinstance(possible_override, bpy.types.Mesh) and (getattr(possible_override, 'shape_keys', None) != None):
+                        bpy.data.batch_remove({possible_override.shape_keys})
                     bpy.data.batch_remove({possible_override})
                 else:
                     prime_override[ID] = possible_override
+                    possible_override.use_fake_user = True
 
             if ID == reference:
                 old, spawned = ID, possible_override
@@ -215,6 +221,11 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 
         UPDATE 2 may 24 2025:
         sisyphean struggle
+
+        UPDATE 3 may 25 2025:
+        i talked with zayjax today about their rigs, and how one of their very complicated rigs broke the importer.
+        i also told them how i worked around it and fixed the importer. i had him try the importer on his many rigs,
+        and it worked. EVERY. SINGLE. TIME. could this be it??
 
         '''
         
@@ -277,8 +288,10 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         else:
             recurse2(col, 0, [])
             for object in list(col.all_objects):
+                if object.parent: continue
                 recurse2(object, 0, [])
             spawned = override_order(col)
+            override_order(col)
             rev_leveled_map.clear()
             refd_by.clear()
 
