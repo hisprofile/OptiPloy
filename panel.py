@@ -265,6 +265,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
             rev_leveled_map[obj] = 0
             recurse2(obj, 1)
             spawned = override_order(obj)
+            override_order(obj)
             rev_leveled_map.clear()
             refd_by.clear()
 
