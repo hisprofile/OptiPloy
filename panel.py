@@ -106,20 +106,34 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         if isinstance(id, bpy.types.Object) and isinstance(getattr(id, 'data', None), bpy.types.Armature):
             arms.add(id)
             bone_shapes.update(set(bone.custom_shape for bone in id.pose.bones))
-
+        OP_keep = list()
         for ref in ref_map.get(id, []):
+            skip = False
             if (ref in bone_shapes) and (id in arms):
                 continue
             if id in refd_by[ref]:
                 # if the current ID was already referenced by its reference, then don't process it.
                 continue
+            # set a filter on how far to parse data
+
+            if isinstance(ref, bpy.types.Collection) and not (ref in tuple(scene.collection.children_recursive)): 
+                #ref.use_fake_user = True
+                OP_keep.append(ref)
+                skip = True
+
+            if isinstance(ref, bpy.types.Object) and not (ref in tuple(view_layer.objects)): 
+                #ref.use_fake_user = True
+                OP_keep.append(ref)
+                skip = True
+
             refd_by[id].add(ref)
             rev_leveled_map[ref] = max(rev_leveled_map.get(ref, -1), level)
+            if skip: continue
             referenced_ids.add(ref)
             recursive_get_referenced_ids(
                 ref_map=ref_map, id=ref, referenced_ids=referenced_ids, visited=visited, level=level+1
             )
-
+        if OP_keep: id['OP_keep'] = OP_keep
 
     def get_all_referenced_ids(id: ID, ref_map: Dict[ID, Set[ID]]) -> Set[ID]:
         """Return a set of IDs directly or indirectly referenced by id."""
@@ -226,6 +240,12 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         i talked with zayjax today about their rigs, and how one of their very complicated rigs broke the importer.
         i also told them how i worked around it and fixed the importer. i had him try the importer on his many rigs,
         and it worked. EVERY. SINGLE. TIME. could this be it??
+
+        UPDATE 4 may 27 2025:
+        i talked with dotflare this time about one of their problems. there was an issue in the way objects and collections
+        are handled if they are indirectly referenced by the import. if they are used, they are prone to getting deleted
+        because they have no users. somehow. so i attach them to the ID that uses those objects to keep them from getting
+        deleted.
 
         '''
         
