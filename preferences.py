@@ -97,6 +97,7 @@ class folders(PropertyGroup):
     name: StringProperty(name='Name')#, options=set(), update=sorter)
     exists: BoolProperty(default=False)
     category: BoolProperty(default=False)
+    recursive: BoolProperty(name='Include subfolders', description='Should subfolders be scanned as well?', default=False)
     selected_blend: EnumProperty(items=folders_blend_CB, name='Selected .blend', description='Selected .blend file under active folder')
 
     override_behavior:      BoolProperty(default=False, name='Override Behavior')
@@ -394,6 +395,7 @@ Hold SHIFT to reverse sort.'''
                 box.row().label(text='This is a category, a way to organize separated .blend files.')
             else:
                 box.row().prop(folder, 'filepath')
+                box.prop(folder, 'recursive')
             row = box.row()
             row.prop(self, 'folder_more_info', toggle=True)
             if self.folder_more_info:# and len(folder.blends) > 0:
@@ -504,6 +506,7 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
     category: BoolProperty(default=False)
     category_name: StringProperty(default='')
     folder_select: IntProperty(default=-1)
+    folder_recursive: BoolProperty(default=False)
     _shift = None
 
     def invoke(self, context, event):
@@ -528,6 +531,7 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
                 self.folder_select = -1
             new_entry = folder.blends.add()
             new_entry.filepath = self.filepath
+            new_entry.recursive = folder_recursive
             name = os.path.basename(self.filepath).rsplit('.', maxsplit=1)[0]
             new_entry.name = name
             scan(self, context, new_entry)
@@ -633,7 +637,9 @@ def scan(op: bpy.types.Operator, context: bpy.types.Context, item, skip = False)
         return {'FINISHED'}
     
     if itemType == 'folders':
-        blends = glob('*.blend', root_dir=item.filepath)
+        print(f'Recursive Scan: {item.recursive}')
+        blends = glob('**/*.blend', root_dir=item.filepath, recursive=item.recursive)
+        print(f'Scan result count: {len(blends)}')
         if not skip:
             item.blends.clear()
         wm.progress_update(1)
