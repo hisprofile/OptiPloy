@@ -638,8 +638,14 @@ def scan(op: bpy.types.Operator, context: bpy.types.Context, item, skip = False)
     
     if itemType == 'folders':
         print(f'Recursive Scan: {item.recursive}')
-        blends = glob('**/*.blend', root_dir=item.filepath, recursive=item.recursive)
+
+        globPath = '*.blend'
+        if item.recursive:
+            globPath = '**/' + globPath
+        
+        blends = glob(globPath, root_dir=item.filepath, recursive=item.recursive)
         print(f'Scan result count: {len(blends)}')
+        
         if not skip:
             item.blends.clear()
         wm.progress_update(1)
