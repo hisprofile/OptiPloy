@@ -18,7 +18,7 @@ options = [
     'localize_node_groups',
     'localize_images',
     'localize_armatures',
-    'localize_action',
+    'localize_actions',
 ]
 
 extra_types = [
@@ -165,8 +165,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         bpy.types.TextCurve,
         bpy.types.Volume,
         bpy.types.Armature,
-        bpy.types.Camera,
-        bpy.types.Action
+        bpy.types.Camera
         #bpy.types.ShaderNodeTree,
         #bpy.types.GeometryNodeTree,
         #bpy.types.Image,
@@ -397,7 +396,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         clean_remap(bpy.types.ShaderNodeTree)
     if ind_prefs.localize_images:
         clean_remap(bpy.types.Image)
-    if ind_prefs.localize_action:
+    if ind_prefs.localize_actions:
         clean_remap(bpy.types.Action)
     
     if ind_prefs.localize_surface_curves:
@@ -745,7 +744,7 @@ To spawn an item, it has to be the active item. This serves as a way of confirmi
             box.prop(prefs, 'localize_node_groups')
             box.prop(prefs, 'localize_images')
             box.prop(prefs, 'localize_armatures')
-            box.prop(prefs, 'localize_action')
+            box.prop(prefs, 'localize_actions')
             box.popover('SPAWNER_PT_extra_settings')
             layout.operator('preferences.addon_show', text='Open Preferences').module = base_package
             if not context.preferences.use_preferences_save:

@@ -77,7 +77,7 @@ class blends(PropertyGroup):
     localize_node_groups:   BoolProperty(default=False, name='Localize node groups', options=set())
     localize_images:        BoolProperty(default=False, name='Localize images', options=set())
     localize_armatures:     BoolProperty(default=False, name='Localize armatures', options=set())
-    localize_action:        BoolProperty(default=True, name='Localize action', options=set())
+    localize_actions:       BoolProperty(default=True, name='Localize actions', options=set())
 
     localize_lights:        BoolProperty(default=False, name='Localize lights', options=set())
     localize_cameras:       BoolProperty(default=False, name='Localize cameras', options=set())
@@ -109,7 +109,7 @@ class folders(PropertyGroup):
     localize_node_groups:   BoolProperty(default=False, name='Localize node groups', options=set())
     localize_images:        BoolProperty(default=False, name='Localize images', options=set())
     localize_armatures:     BoolProperty(default=False, name='Localize armatures', options=set())
-    localize_action:        BoolProperty(default=True, name='Localize action', options=set())
+    localize_actions:       BoolProperty(default=True, name='Localize actions', options=set())
 
     localize_lights:        BoolProperty(default=False, name='Localize lights', options=set())
     localize_cameras:       BoolProperty(default=False, name='Localize cameras', options=set())
@@ -224,7 +224,7 @@ class blendentriespref(AddonPreferences):
     localize_node_groups:   BoolProperty(default=False, name='Localize node groups', options=set())
     localize_images:        BoolProperty(default=False, name='Localize images', options=set())
     localize_armatures:     BoolProperty(default=False, name='Localize armatures', options=set())
-    localize_action:        BoolProperty(default=True, name='Localize action', options=set())
+    localize_actions:       BoolProperty(default=True, name='Localize actions', options=set())
 
     localize_lights:        BoolProperty(default=False, name='Localize lights', options=set())
     localize_cameras:       BoolProperty(default=False, name='Localize cameras', options=set())
