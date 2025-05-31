@@ -492,21 +492,23 @@ Hold SHIFT to reverse sort.'''
                     else:
                         row.label(text='No collections!')
         
-class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
+class SPAWNER_OT_Add_Entry(Operator):
     bl_idname = 'spawner.add_entry'
     bl_label = 'Add Blend Entry'
     bl_description = 'Add a .blend file to spawn from'
 
+    #bl_options = {''}
+
     filepath: StringProperty()
     directory: StringProperty()
-    blend: BoolProperty(default=True)
-    folder: BoolProperty(default=False)
-    filter_glob: StringProperty(default='*.blend')
-    execute_only: BoolProperty(default=False)
-    category: BoolProperty(default=False)
-    category_name: StringProperty(default='')
-    folder_select: IntProperty(default=-1)
-    folder_recursive: BoolProperty(default=False)
+    blend: BoolProperty(default=True, options={'HIDDEN'})
+    folder: BoolProperty(default=False, options={'HIDDEN'})
+    filter_glob: StringProperty(default='*.blend', options={'HIDDEN'})
+    execute_only: BoolProperty(default=False, options={'HIDDEN'})
+    category: BoolProperty(default=False, options={'HIDDEN'})
+    category_name: StringProperty(default='', options={'HIDDEN'})
+    folder_select: IntProperty(default=-1, options={'HIDDEN'})
+    folder_recursive: BoolProperty(name='Folder Recursive Scan', description='Add recursive scans for folders and its sub-folders', default=False)
     _shift = None
 
     def invoke(self, context, event):
@@ -516,7 +518,8 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
         self._shift = event.shift
         if self.folder and self._shift:
             return self.execute(context)
-        return super().invoke(context, event)
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
 
     def execute(self, context):
         prefs = context.preferences.addons[base_package].preferences
@@ -531,7 +534,6 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
                 self.folder_select = -1
             new_entry = folder.blends.add()
             new_entry.filepath = self.filepath
-            new_entry.recursive = folder_recursive
             name = os.path.basename(self.filepath).rsplit('.', maxsplit=1)[0]
             new_entry.name = name
             scan(self, context, new_entry)
@@ -559,6 +561,7 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
                 new_entry.name = new_name
             else:
                 new_entry.filepath = self.directory
+                new_entry.recursive = self.folder_recursive
                 directory: str = self.directory
                 directory = directory.removesuffix('/')
                 directory = directory.removesuffix('\\')
