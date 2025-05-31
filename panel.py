@@ -460,6 +460,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
     gatherings['linked'].clear()
     gatherings['override'].clear()
     arms.clear()
+    additional.clear()
     bone_shapes.clear()
     del sorted_refs, map_to_do, gatherings
 

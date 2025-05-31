@@ -675,7 +675,7 @@ def scan(op: bpy.types.Operator, context: bpy.types.Context, item, skip = False)
             print(f'Found {len(From.objects)} object(s)')
             print(f'Found {len(From.collections)} collections(s)')
             newBlend = item.blends.add()
-            newBlend.name = blend
+            newBlend.name = os.path.splitext(blend)[0]
             newBlend.filepath = blend_path
             wm.progress_update(n*10+1)
             for obj in sorted(From.objects):
