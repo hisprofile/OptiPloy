@@ -394,11 +394,13 @@ Hold SHIFT to reverse sort.'''
 
         if (len(self.folders) != 0) and (self.folder_index < len(self.folders)):
             folder = self.folders[self.folder_index]
+            col = box.column(align=False)
             if folder.category:
                 box.row().label(text='This is a category, a way to organize separated .blend files.')
             else:
-                box.row().prop(folder, 'filepath')
-                box.prop(folder, 'recursive')
+                col.row().prop(folder, 'recursive')
+                col.separator()
+                col.row().prop(folder, 'filepath')
             row = box.row()
             row.prop(self, 'folder_more_info', toggle=True)
             if self.folder_more_info:# and len(folder.blends) > 0:
