@@ -3,7 +3,7 @@ schema_version = "1.0.0"
 # Example of manifest file for a Blender extension
 # Change the values according to your extension
 id = "optiploy"
-version = "1.4.4"
+version = "1.5.0"
 name = "optiploy"
 tagline = "Append and link rigs, save space like never before"
 maintainer = "hisanimations <hisprofile029@gmail.com"
