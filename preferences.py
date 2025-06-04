@@ -77,6 +77,7 @@ class blends(PropertyGroup):
     localize_node_groups:   BoolProperty(default=False, name='Localize node groups', options=set())
     localize_images:        BoolProperty(default=False, name='Localize images', options=set())
     localize_armatures:     BoolProperty(default=False, name='Localize armatures', options=set())
+    localize_actions:       BoolProperty(default=True, name='Localize actions', options=set())
 
     localize_lights:        BoolProperty(default=False, name='Localize lights', options=set())
     localize_cameras:       BoolProperty(default=False, name='Localize cameras', options=set())
@@ -97,6 +98,7 @@ class folders(PropertyGroup):
     name: StringProperty(name='Name')#, options=set(), update=sorter)
     exists: BoolProperty(default=False)
     category: BoolProperty(default=False)
+    recursive: BoolProperty(name='Include subfolders', description='Should subfolders be scanned as well?', default=False)
     selected_blend: EnumProperty(items=folders_blend_CB, name='Selected .blend', description='Selected .blend file under active folder')
 
     override_behavior:      BoolProperty(default=False, name='Override Behavior')
@@ -107,6 +109,7 @@ class folders(PropertyGroup):
     localize_node_groups:   BoolProperty(default=False, name='Localize node groups', options=set())
     localize_images:        BoolProperty(default=False, name='Localize images', options=set())
     localize_armatures:     BoolProperty(default=False, name='Localize armatures', options=set())
+    localize_actions:       BoolProperty(default=True, name='Localize actions', options=set())
 
     localize_lights:        BoolProperty(default=False, name='Localize lights', options=set())
     localize_cameras:       BoolProperty(default=False, name='Localize cameras', options=set())
@@ -221,6 +224,7 @@ class blendentriespref(AddonPreferences):
     localize_node_groups:   BoolProperty(default=False, name='Localize node groups', options=set())
     localize_images:        BoolProperty(default=False, name='Localize images', options=set())
     localize_armatures:     BoolProperty(default=False, name='Localize armatures', options=set())
+    localize_actions:       BoolProperty(default=True, name='Localize actions', options=set())
 
     localize_lights:        BoolProperty(default=False, name='Localize lights', options=set())
     localize_cameras:       BoolProperty(default=False, name='Localize cameras', options=set())
@@ -390,10 +394,13 @@ Hold SHIFT to reverse sort.'''
 
         if (len(self.folders) != 0) and (self.folder_index < len(self.folders)):
             folder = self.folders[self.folder_index]
+            col = box.column(align=False)
             if folder.category:
                 box.row().label(text='This is a category, a way to organize separated .blend files.')
             else:
-                box.row().prop(folder, 'filepath')
+                col.row().prop(folder, 'recursive')
+                col.separator()
+                col.row().prop(folder, 'filepath')
             row = box.row()
             row.prop(self, 'folder_more_info', toggle=True)
             if self.folder_more_info:# and len(folder.blends) > 0:
@@ -490,20 +497,23 @@ Hold SHIFT to reverse sort.'''
                     else:
                         row.label(text='No collections!')
         
-class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
+class SPAWNER_OT_Add_Entry(Operator):
     bl_idname = 'spawner.add_entry'
     bl_label = 'Add Blend Entry'
     bl_description = 'Add a .blend file to spawn from'
 
+    #bl_options = {''}
+
     filepath: StringProperty()
     directory: StringProperty()
-    blend: BoolProperty(default=True)
-    folder: BoolProperty(default=False)
-    filter_glob: StringProperty(default='*.blend')
-    execute_only: BoolProperty(default=False)
-    category: BoolProperty(default=False)
-    category_name: StringProperty(default='')
-    folder_select: IntProperty(default=-1)
+    blend: BoolProperty(default=True, options={'HIDDEN'})
+    folder: BoolProperty(default=False, options={'HIDDEN'})
+    filter_glob: StringProperty(default='*.blend', options={'HIDDEN'})
+    execute_only: BoolProperty(default=False, options={'HIDDEN'})
+    category: BoolProperty(default=False, options={'HIDDEN'})
+    category_name: StringProperty(default='', options={'HIDDEN'})
+    folder_select: IntProperty(default=-1, options={'HIDDEN'})
+    folder_recursive: BoolProperty(name='Folder Recursive Scan', description='Add recursive scans for folders and its sub-folders', default=False)
     _shift = None
 
     def invoke(self, context, event):
@@ -513,7 +523,8 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
         self._shift = event.shift
         if self.folder and self._shift:
             return self.execute(context)
-        return super().invoke(context, event)
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
 
     def execute(self, context):
         prefs = context.preferences.addons[base_package].preferences
@@ -555,6 +566,7 @@ class SPAWNER_OT_Add_Entry(Operator, ImportHelper):
                 new_entry.name = new_name
             else:
                 new_entry.filepath = self.directory
+                new_entry.recursive = self.folder_recursive
                 directory: str = self.directory
                 directory = directory.removesuffix('/')
                 directory = directory.removesuffix('\\')
@@ -633,7 +645,15 @@ def scan(op: bpy.types.Operator, context: bpy.types.Context, item, skip = False)
         return {'FINISHED'}
     
     if itemType == 'folders':
-        blends = glob('*.blend', root_dir=item.filepath)
+        print(f'Recursive Scan: {item.recursive}')
+
+        globPath = '*.blend'
+        if item.recursive:
+            globPath = '**/' + globPath
+        
+        blends = glob(globPath, root_dir=item.filepath, recursive=item.recursive)
+        print(f'Scan result count: {len(blends)}')
+        
         if not skip:
             item.blends.clear()
         wm.progress_update(1)
@@ -657,7 +677,7 @@ def scan(op: bpy.types.Operator, context: bpy.types.Context, item, skip = False)
             print(f'Found {len(From.objects)} object(s)')
             print(f'Found {len(From.collections)} collections(s)')
             newBlend = item.blends.add()
-            newBlend.name = blend
+            newBlend.name = os.path.splitext(blend)[0]
             newBlend.filepath = blend_path
             wm.progress_update(n*10+1)
             for obj in sorted(From.objects):

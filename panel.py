@@ -18,6 +18,7 @@ options = [
     'localize_node_groups',
     'localize_images',
     'localize_armatures',
+    'localize_actions',
 ]
 
 extra_types = [
@@ -161,7 +162,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         bpy.types.TextCurve,
         bpy.types.Volume,
         bpy.types.Armature,
-        bpy.types.Camera,
+        bpy.types.Camera
         #bpy.types.ShaderNodeTree,
         #bpy.types.GeometryNodeTree,
         #bpy.types.Image,
@@ -453,6 +454,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
     gatherings['linked'].clear()
     gatherings['override'].clear()
     arms.clear()
+    additional.clear()
     bone_shapes.clear()
     del sorted_refs, map_to_do, gatherings
 
@@ -744,6 +746,7 @@ To spawn an item, it has to be the active item. This serves as a way of confirmi
             box.prop(prefs, 'localize_node_groups')
             box.prop(prefs, 'localize_images')
             box.prop(prefs, 'localize_armatures')
+            box.prop(prefs, 'localize_actions')
             box.popover('SPAWNER_PT_extra_settings')
             layout.operator('preferences.addon_show', text='Open Preferences').module = base_package
             if not context.preferences.use_preferences_save:
