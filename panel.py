@@ -31,6 +31,15 @@ extra_types = [
     'localize_grease_pencil', 
 ]
 
+op_props = [
+    'activate',
+    'blend',
+    'collection',
+    'folder',
+    'index',
+    'object'
+]
+
 def only(item, *argv):
     for arg in argv:
         if arg != item:
@@ -43,11 +52,11 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 
     prefs = context.preferences.addons[base_package].preferences
     props = context.scene.optiploy_props
-    activeCol = context.view_layer.active_layer_collection.collection
     scene, view_layer = scene_viewlayer
-    #view_layer = context.view_layer
-    
-    #col: bpy.types.Collection = bpy.data.collections[col]
+    scene: bpy.types.Scene
+    view_layer: bpy.types.ViewLayer
+    activeCol = view_layer.active_layer_collection.collection
+
     bone_shapes = set()
     arms = set()
     map_to_do = {}
@@ -57,17 +66,6 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
     }
     rev_leveled_map = dict()
     refd_by = defaultdict(set)
-
-    def recursive(d_block):
-        user_map = bpy.data.user_map(subset=[d_block])
-        IDs = user_map[d_block]
-        map_to_do[d_block] = d_block.make_local()
-        
-        for ID in IDs:
-            if map_to_do.get(ID): continue
-            if getattr(ID, 'override_library') != None: continue
-            recursive(ID)
-        return d_block
     
     def remap():
         for linked, local in list(map_to_do.items()):
@@ -114,21 +112,20 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
             if id in refd_by[ref]:
                 # if the current ID was already referenced by its reference, then don't process it.
                 continue
-            # set a filter on how far to parse data
-
-            if isinstance(ref, bpy.types.Collection) and not (ref in tuple(scene.collection.children_recursive)): 
-                #ref.use_fake_user = True
-                OP_keep.append(ref)
-                skip = True
-
-            if isinstance(ref, bpy.types.Object) and not (ref in tuple(view_layer.objects)): 
-                #ref.use_fake_user = True
-                OP_keep.append(ref)
-                skip = True
 
             refd_by[id].add(ref)
             rev_leveled_map[ref] = max(rev_leveled_map.get(ref, -1), level)
-            if skip: continue
+
+            if isinstance(ref, bpy.types.Collection) and not (ref in tuple(scene.collection.children_recursive)) and not (getattr(id.override_library, 'reference', None) == ref): 
+                #ref.use_fake_user = True
+                OP_keep.append(ref)
+                continue
+
+            if isinstance(ref, bpy.types.Object) and not (ref in tuple(view_layer.objects)) and not (getattr(id.override_library, 'reference', None) == ref): 
+                #ref.use_fake_user = True
+                OP_keep.append(ref)
+                continue
+
             referenced_ids.add(ref)
             recursive_get_referenced_ids(
                 ref_map=ref_map, id=ref, referenced_ids=referenced_ids, visited=visited, level=level+1
@@ -181,15 +178,12 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         rev_l = list(reversed(sorted(list(
                 rev_leveled_map.items()
             ) + additional, key=lambda a: a[1])))
-        
-        #print(rev_l)
-        #print(additional)
 
         for ID, _ in rev_l:
             ID: bpy.types.ID
-            context.scene['test_prop'] = ID
+            scene['test_prop'] = ID
             possible_override = ID.override_create(remap_local_usages=True)
-            del context.scene['test_prop']
+            del scene['test_prop']
             if possible_override != None:
                 drivers = getattr(getattr(getattr(possible_override, 'shape_keys', None),'animation_data', None),'drivers', None)
                 if drivers:
@@ -208,11 +202,6 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         return spawned
 
     def recurse2(ID, level=0, line:list=[]):
-        if rev_leveled_map.get(ID, -1) >= level: return
-        if type(ID) != bpy.types.Key:
-            rev_leveled_map[ID] = level
-        line = list(line)
-        line.append(ID)
         '''
 
         This function was the missing piece of a puzzle. OptiPloy is complete now. No more errors when spawning.
@@ -248,6 +237,12 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         deleted.
 
         '''
+        
+        if rev_leveled_map.get(ID, -1) >= level: return
+        if type(ID) != bpy.types.Key:
+            rev_leveled_map[ID] = level
+        line = list(line)
+        line.append(ID)
         
         refs = bpy.data.user_map().get(ID, [])
         # refs is the list of IDs that are using the given ID
@@ -316,8 +311,8 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
             rev_leveled_map.clear()
             refd_by.clear()
 
-    rev_leveled_map.clear()
-    refd_by.clear()
+    #return {'FINISHED'}
+
     id_ref = get_id_reference_map()
     id_ref = get_all_referenced_ids(spawned, id_ref)
 
@@ -334,11 +329,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         if isinstance(ID, override_support):
             possible_override = ID.override_create(remap_local_usages=True)
             if possible_override != None:
-                drivers = getattr(
-                            getattr(
-                                getattr(possible_override, 'shape_keys', None),
-                            'animation_data', None),
-                        'drivers', None)
+                drivers = getattr(getattr(getattr(possible_override, 'shape_keys', None),'animation_data', None),'drivers', None)
                 if drivers:
                     [setattr(target, 'id', possible_override) if target.id == ID else None for driver in drivers for variable in driver.driver.variables for target in variable.targets]
                     # This is really specific, but with good cause.
@@ -395,6 +386,8 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         clean_remap(bpy.types.ShaderNodeTree)
     if ind_prefs.localize_images:
         clean_remap(bpy.types.Image)
+    if ind_prefs.localize_actions:
+        clean_remap(bpy.types.Action)
     
     if ind_prefs.localize_surface_curves:
         clean_remap(bpy.types.SurfaceCurve)
@@ -413,6 +406,9 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
     if ind_prefs.localize_grease_pencil:
         clean_remap(bpy.types.GreasePencil)
         clean_remap(bpy.types.GreasePencilv3)
+
+    if op.do_storage_benchmark:
+        return spawned
 
     if col and prefs.to_cursor:
         for object in spawned.all_objects:
@@ -491,7 +487,9 @@ class SPAWNER_GENERIC_SPAWN_UL_List(UIList):
                 row.separator()
                 row.enabled = False
                 return
-            
+        row = row.row(align=True)
+        row.alignment = 'RIGHT'
+        benchmark_op = row.operator('spawner.spawner', icon='DISK_DRIVE', text='')
         op = row.operator('spawner.spawner')
         op.activate=True
         if props.view == 'BLENDS':
@@ -507,6 +505,11 @@ class SPAWNER_GENERIC_SPAWN_UL_List(UIList):
         if Type == 'COLLECTION':
             op.collection = item.name
             op.object = ''
+
+        for attr in op_props:
+            setattr(benchmark_op, attr, getattr(op, attr))
+        benchmark_op.do_storage_benchmark = True
+        op.do_storage_benchmark = False
 
 class SPAWNER_PT_folder_settings(Panel):
     bl_label = 'Settings'
@@ -791,13 +794,21 @@ class SPAWNER_OT_SPAWNER(mod_saver):
 
     index: IntProperty()
 
-    def execute(self, context):
-        if not self.activate: return {'CANCELLED'}
+    do_storage_benchmark: BoolProperty(default=False)
+    compress_append: BoolProperty(default=False, name='Compress Append Result', description='Choose to compress the result after loading the traditional way via appending')
+    compress_optiploy: BoolProperty(default=True, name='Compress OptiPloy Result', description='Choose to compress the result after loading via OptiPloy')
+
+    _time = None
+
+    def invoke(self, context, event):
+        if not self.do_storage_benchmark:
+            return super().invoke(context, event)
+        return context.window_manager.invoke_props_dialog(self)
+
+    def get_prefs(self, context):
         prefs = context.preferences.addons[base_package].preferences
         blend = self.blend
         folder = self.folder
-        obj = self.object
-        col = self.collection
 
         if (folder != -1) and (blend != -1):
             folder = prefs.folders[folder]
@@ -811,6 +822,76 @@ class SPAWNER_OT_SPAWNER(mod_saver):
             entry = prefs.blends[blend]
             if entry.override_behavior:
                 prefs = entry
+        return prefs, entry
+
+    def load_test(self, context):
+        obj = self.object
+        col = self.collection
+        prefs, entry = self.get_prefs(context)
+        test_path = os.path.join(os.path.dirname(__file__), 'test.blend')
+        temp = bpy.data
+
+        if (was_saved := temp.is_saved):
+            re_open = temp.filepath
+            bpy.ops.wm.save_mainfile()
+
+        bpy.ops.wm.read_homefile(app_template="")
+
+        with temp.libraries.load(entry.filepath) as (f, t):
+            if obj:
+                t.objects = [obj]
+            if col:
+                t.collections = [col]
+        item = (t.objects or t.collections)[0]
+        temp.libraries.write(test_path, {item}, compress=self.compress_append)
+        old_size = os.path.getsize(test_path)
+        
+        bpy.ops.wm.read_homefile(app_template="")
+
+        with temp.libraries.load(entry.filepath, link=True) as (f, t):
+            if obj:
+                t.objects = [obj]
+            if col:
+                t.collections = [col]
+        scn = temp.scenes.new('scn')
+        item = (t.objects or t.collections)[0]
+
+        if obj:
+            spawned = load_data(self, context, [scn, scn.view_layers[0]], ind_prefs=prefs, obj=item)
+        if col:
+            spawned = load_data(self, context, [scn, scn.view_layers[0]], ind_prefs=prefs, col=item)
+
+        temp.libraries.write(test_path, {spawned}, compress=self.compress_optiploy)
+        new_size = os.path.getsize(test_path)
+        os.remove(test_path)
+        if was_saved:
+            bpy.ops.wm.open_mainfile(filepath=re_open)
+        else:
+            bpy.ops.wm.read_homefile(app_template="")
+
+        def format_size(size_in_bytes):
+            """
+            Convert size in bytes to a human-readable format.
+            """
+            for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+                if size_in_bytes < 1024.0:
+                    return f"{size_in_bytes:.2f} {unit}"
+                size_in_bytes /= 1024.0
+        
+        self.report({'INFO'}, f'OptiPloy saves {format_size(old_size-new_size)}')
+
+        return {'FINISHED'}
+
+    def execute(self, context):
+        if not self.activate: return {'CANCELLED'}
+        if self.do_storage_benchmark:
+            return self.load_test(context)
+        prefs = context.preferences.addons[base_package].preferences
+        obj = self.object
+        col = self.collection
+
+        
+        prefs, entry = self.get_prefs(context)
 
         if not os.path.exists(entry.filepath):
             self.report({'ERROR'}, f"{entry.filepath} doesn't exist!")
@@ -846,6 +927,18 @@ class SPAWNER_OT_SPAWNER(mod_saver):
         
         self.report({'WARNING'}, 'What?')
         return {'CANCELLED'}
+    
+    def draw(self, context):
+        sentences = f'''This is for checking how much storage you save with OptiPloy.
+This process requires a clean slate.
+{"This file has NOT been saved, and you will lose progress if you continue." if not bpy.data.is_saved else "This file will be saved, and then re-opened."}
+Continue? '''.split('\n')
+        icons = f'DISK_DRIVE,ERROR,{"ERROR" if not bpy.data.is_saved else "CHECKMARK"},QUESTION'.split(',')
+        sizes = '56,56,56,56'.split(',')
+        for sentence, icon, size in zip(sentences, icons, sizes):
+            textBox(self.layout, sentence, icon, int(size))
+        self.layout.prop(self, 'compress_append')
+        self.layout.prop(self, 'compress_optiploy')
     
 class SPAWNER_OT_POST_OPTIMIZE(mod_saver):
     bl_idname = 'spawner.post_optimize'
