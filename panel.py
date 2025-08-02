@@ -408,7 +408,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
         clean_remap(bpy.types.GreasePencil)
         clean_remap(bpy.types.GreasePencilv3)
 
-    if op.do_storage_benchmark:
+    if getattr(op, 'do_storage_benchmark', False):
         return spawned
 
     if col and prefs.to_cursor:
@@ -881,7 +881,7 @@ class SPAWNER_OT_SPAWNER(mod_saver):
                     return f"{size_in_bytes:.2f} {unit}"
                 size_in_bytes /= 1024.0
         
-        self.report({'INFO'}, f'OptiPloy saves {format_size(old_size-new_size)}')
+        self.report({'INFO'}, f'From {format_size(old_size)} to {format_size(new_size)} with OptiPloy')
 
         return {'FINISHED'}
 
@@ -1219,10 +1219,118 @@ class SPAWNER_OT_open_folder(generictext):
         op.category = self.add_category
         op.category_name = self.category_name
 
+class SPAWNER_OT_link(Operator):
+    bl_idname = 'spawner.link'
+    bl_label = 'Import with OptiPloy'
+    bl_description = 'Link collections/objects, then optimize with OptiPloy'
+
+    bl_options = {'UNDO'}
+
+    filemode: IntProperty(default=1, options={'HIDDEN'})
+    files: CollectionProperty(name='File paths', type=bpy.types.OperatorFileListElement)
+    directory: StringProperty()
+    #filter_glob: StringProperty(default='*.blend', options={'HIDDEN'})
+    filter_blender: BoolProperty(default=True, options={'HIDDEN'})
+    filter_folder: BoolProperty(default=True, options={'HIDDEN'})
+    filter_blenlib: BoolProperty(default=True, options={'HIDDEN'})
+
+    relative_import: BoolProperty(name='Relative Import', description='Write the paths to the libraries in relative format', default=True)
+
+    localize_collections:   BoolProperty(name='Localize collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
+    localize_objects:       BoolProperty(default=True, name='Localize objects', options=set())
+    localize_meshes:        BoolProperty(default=False, name='Localize mesh data', options=set())
+    localize_materials:     BoolProperty(default=False, name='Localize materials', options=set())
+    localize_node_groups:   BoolProperty(default=False, name='Localize node groups', options=set())
+    localize_images:        BoolProperty(default=False, name='Localize images', options=set())
+    localize_armatures:     BoolProperty(default=False, name='Localize armatures', options=set())
+    localize_actions:       BoolProperty(default=True, name='Localize actions', options=set())
+
+    localize_lights:        BoolProperty(default=False, name='Localize lights', options=set())
+    localize_cameras:       BoolProperty(default=False, name='Localize cameras', options=set())
+    localize_curves:        BoolProperty(default=False, name='Localize curves', options=set())
+    localize_text_curves:   BoolProperty(default=False, name='Localize text curves', options=set())
+    localize_metaballs:     BoolProperty(default=False, name='Localize metaballs', options=set())
+    localize_surface_curves:BoolProperty(default=False, name='Localize surface curves', options=set())
+    localize_volumes:       BoolProperty(default=False, name='Localize volumes', options=set())
+    localize_grease_pencil: BoolProperty(default=False, name='Localize grease pencil', options=set())
+
+    importer: StringProperty(default='FAST', options={'HIDDEN'})
+
+    def invoke(self, context, event):
+        prefs = context.preferences.addons[base_package].preferences
+        props = context.scene.optiploy_props
+
+        [setattr(self, prop, getattr(prefs, prop)) for prop in [*options, *extra_types]]
+
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+    
+    def draw(self, context):
+        prefs = context.preferences.addons[base_package].preferences
+        layout = self.layout
+        layout.prop(prefs, 'to_cursor')
+        layout.prop(self, 'relative_import')
+        box = layout.box()
+        box.label(text='Localize Options', icon='UNLINKED')
+        col = box.column()
+        for prop in options:
+            col.prop(self, prop)
+        box = layout.box()
+        box.label(text='Localize Extra', icon='PLUS')
+        col = box.column()
+        for prop in extra_types:
+            col.prop(self, prop)
+        
+
+    def execute(self, context):
+        directory_parts = Path(self.directory).parts
+        if not ('.blend' in directory_parts[-2]):
+            self.report({'ERROR'}, 'Invalid file selection!')
+            return {'CANCELLED'}
+        if not (directory_parts[-1] in {'Object', 'Collection'}):
+            self.report({'ERROR'}, 'OptiPloy can only link Objects & Collections!')
+            return {'CANCELLED'}
+        blend_path = os.path.join('', *directory_parts[:-1])
+        import_type = 'OBJECT' if directory_parts[-1] == 'Object' else 'COLLECTION'
+        import_files = list(map(lambda a: a.name, self.files))
+
+        try:
+            with bpy.data.libraries.load(blend_path, link=True, relative=self.relative_import) as (f, t):
+                if import_type == 'OBJECT':
+                    t.objects = import_files
+                else:
+                    t.collections = import_files
+        except:
+            self.report({'ERROR'}, 'The .blend file you are trying to access is corrupt!')
+            return {'CANCELLED'}
+        
+        scene_viewlayer = [context.scene, context.view_layer]
+
+        if import_type == 'OBJECT':
+            for item in t.objects:
+                if not item: continue
+                load_data(self, context, scene_viewlayer, ind_prefs=self, obj=item)
+        if import_type == 'COLLECTION':
+
+            filtered_collections = set(t.collections)
+            filtered_collections.discard(None)
+            [filtered_collections.discard(child) for col in list(filtered_collections) for child in col.children_recursive]
+
+            for item in filtered_collections:
+                if not item: continue
+                load_data(self, context, scene_viewlayer, ind_prefs=self, col=item)
+        
+        return {'FINISHED'}
+
 def draw_item(self:bpy.types.Menu, context):
     layout = self.layout
     layout.separator()
     layout.operator('spawner.post_optimize')
+
+def add_optiploy_link(self:bpy.types.Menu, context):
+    layout = self.layout
+    #layout.separator()
+    layout.operator('spawner.link', icon='LINK_BLEND')
 
 classes = [
     SPAWNER_PT_panel,
@@ -1234,7 +1342,8 @@ classes = [
     SPAWNER_PT_folder_settings,
     SPAWNER_PT_blend_settings,
     SPAWNER_OT_open_blend,
-    SPAWNER_OT_open_folder
+    SPAWNER_OT_open_folder,
+    SPAWNER_OT_link
 ]
 
 def register():
@@ -1244,6 +1353,7 @@ def register():
     bpy.types.OUTLINER_MT_context_menu.append(draw_item)
     bpy.types.OUTLINER_MT_object.append(draw_item)
     bpy.types.OUTLINER_MT_collection.append(draw_item)
+    bpy.types.TOPBAR_MT_file_import.append(add_optiploy_link)
 
 def unregister():
     for i in reversed(classes):
@@ -1252,3 +1362,4 @@ def unregister():
     bpy.types.OUTLINER_MT_context_menu.remove(draw_item)
     bpy.types.OUTLINER_MT_object.remove(draw_item)
     bpy.types.OUTLINER_MT_collection.remove(draw_item)
+    bpy.types.TOPBAR_MT_file_import.remove(add_optiploy_link)
