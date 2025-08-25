@@ -1,19 +1,20 @@
 <html>
-<body style="background-color:rgb(40, 40, 40);color:floralwhite">
+<body style="background-color:rgb(40, 40, 40);color:floralwhite;font-family:Arial, Helvetica, sans-serif;">
 <h1>OptiPloy's Importers</h1>
 <h2>Importance</h2>
-OptiPloy's original and most stable importer relies on breaking Blender's API. It relies on the <code>override_hierarchy_create</code> function of <code>bpy.types.ID</code>. If you use it on a collection for example, then that collection, its sub collections, and its objects will all be made overridden copies. These copies all reference the top-most collection as the root.<br><br>
-If this hierarchy is broken by localizing a data-block, you will get a warning in the console, but Blender will try to reconfigure the overrides to compensate. So far, it always does. But in my eyes, that isn't the most professional thing. To have an addon function by making the program it's extending flood the console with errors. But it works! So why fix it?<br><br>
-I always had it in my mind to write a new importer, and recently I thought I had a breakthrough, but I just can't write a python implemention of the <code>override_hierarchy_create</code> function. And while it does work, it struggles with loops in the user hierarchy. So for simple rigs, it works just fine. Super-duper complicated ones? A hit or miss.<br><br>
+The first importer of OptiPloy, "STABLE," functioned by taking advantage of a built-in tool in Blender. This being the <code>override_hierarchy_create</code> function, which is used on collections for example. However, localizing the top collection caused the hierarchy to be disrupted, and would flood the
+console with errors. Usually Blender would always compensate.<br><br>
 
-TL;DR, Hopefully you always get a best case scenario with whatever importer you choose. Usually that's with the stable importer.
+The "FAST" importer was written to replicate the behavior of <code>override_hierarchy_create</code>, and yields no errors when localizing a collection, as there is no hierarchy to disrupt.<br><br>
+
+"STABLE" is the most consistent, but can also be slower depending on the user hierarchy of the rig you may be importing. Hence why the other option is named "FAST."
 
 <h2>Stable Importer</h2>
 Relies on breaking the API by mis-using the <code>override_hierarchy_create</code> function. Based on how many data-blocks compose the rig, you will get more warnings in console, but Blender will compensate and you will usually get the most stable result.
 <h2>Fast Importer</h2>
 Takes a more robust approach by approximating the behavior of the <code>override_hierarchy_create</code>, and creates overrides in a specific order. This avoids warnings flooding the console. However, it has not been perfected and does not work with all rigs.
 <h2>Do Your Own Trials</h2>
-You can set a per-blend, per-folder, or global preference on the importer. See what works, see what doesn't. I'll work on the Fast Importer some more! I really want a permanent fix.<br><br><br><br>
+You can set a per-blend, per-folder, or global preference on the importer. See what works, see what doesn't.<br><br><br><br>
 
 -hisanimations
 </body>

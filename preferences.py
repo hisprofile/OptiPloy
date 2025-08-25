@@ -234,7 +234,10 @@ class blendentriespref(AddonPreferences):
     localize_surface_curves:BoolProperty(default=False, name='Localize surface curves', options=set())
     localize_volumes:       BoolProperty(default=False, name='Localize volumes', options=set())
     localize_grease_pencil: BoolProperty(default=False, name='Localize grease pencil', options=set())
-     
+    
+    objects_to_active_collection: BoolProperty(default=True, name='Assign Objects to Active Collection', description='Assigns imported collections to the active collection in the view layer. If disable, imports will always be assigned to scene collection')
+    collections_to_active_collection: BoolProperty(default=False, name='Assign Collections to Active Collection', description='Assigns imported collections to the active collection in the view layer. If disable, imports will always be assigned to scene collection')
+
     execute_scripts: BoolProperty(default=True, name='Execute Attached Scripts', options=set())
 
     importer: EnumProperty(items=(('FAST', 'Fast', 'Fast importer'), ('STABLE', 'Stable', 'Stable importer')), name='Importer', description='Which importer to use', default='FAST')
@@ -619,8 +622,15 @@ def scan(op: bpy.types.Operator, context: bpy.types.Context, item, skip = False)
             return {'CANCELLED'}
         print(f'Opening {item.filepath}...')
         try:
-            with bpy.data.libraries.load(item.filepath, assets_only=True) as (From, To):
-                pass
+            if bpy.data.filepath == item.filepath:
+                class From:
+                    objects = [obj.name for obj in bpy.data.objects if obj.asset_data]
+                    collections = [col.name for col in bpy.data.collections if col.asset_data]
+                class To:
+                    pass
+            else:
+                with bpy.data.libraries.load(item.filepath, assets_only=True) as (From, To):
+                    pass
         except:
             op.report({'ERROR'}, f'Could not open {item.filepath}! Is it corrupt?')
             return {'CANCELLED'}
@@ -664,13 +674,17 @@ def scan(op: bpy.types.Operator, context: bpy.types.Context, item, skip = False)
             wm.progress_update(n*10)
             print(f'Opening {blend_path}...')
             try:
-                with bpy.data.libraries.load(blend_path, assets_only=True) as (From, To):
-                    pass
+                if bpy.data.filepath == blend_path:
+                    class From:
+                        objects = [obj.name for obj in bpy.data.objects if obj.asset_data]
+                        collections = [col.name for col in bpy.data.collections if col.asset_data]
+                    class To:
+                        pass
+                else:
+                    with bpy.data.libraries.load(blend_path, assets_only=True) as (From, To):
+                        pass
             except:
                 op.report({'ERROR'}, f'Could not open {blend_path}! Is it corrupt?')
-                failed += 1
-            if len(From.objects) + len(From.collections) == 0:
-                op.report({'WARNING'}, f'{blend_path} does not have any objects or collections marked as assets!')
                 failed += 1
                 continue
             print(f'Opened!')

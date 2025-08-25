@@ -3,7 +3,7 @@ schema_version = "1.0.0"
 # Example of manifest file for a Blender extension
 # Change the values according to your extension
 id = "optiploy"
-version = "1.5.1"
+version = "1.6.1"
 name = "optiploy"
 tagline = "Append and link rigs, save space like never before"
 maintainer = "hisanimations <hisprofile029@gmail.com"
@@ -59,7 +59,7 @@ license = [
 # # For longer explanations use the documentation or detail page.
 #
 [permissions]
-# network = "Need to sync motion-capture data to server"
+network = "Accesses message board, grabs small .wav file for notif sounds"
 files = "Read and save .blend and folder entries"
 # clipboard = "Copy and paste bone transforms"
 
