@@ -145,11 +145,8 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 			if id in refd_by[ref]:
 				# if the current ID was already referenced by its reference, then don't process it.
 				continue
-			#if ref.name == 'WGTS_rig':
-			#	input((ref, id))
 
 			if isinstance(ref, bpy.types.Collection) and not (ref in tuple(scene.collection.children_recursive)) and not (getattr(id.override_library, 'reference', None) == ref): 
-				#ref.use_fake_user = True
 				OP_keep.append(ref)
 				continue
 
@@ -157,9 +154,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 			rev_leveled_map[ref] = max(rev_leveled_map.get(ref, -1), level)
 
 			if isinstance(ref, bpy.types.Object) and not (ref in tuple(view_layer.objects)) and not (getattr(id.override_library, 'reference', None) == ref): 
-				#ref.use_fake_user = True
 				OP_keep.append(ref)
-				#continue
 				if (not isinstance(ref, bpy.types.Object)) or (not isinstance(id, bpy.types.Object)): continue
 
 			referenced_ids.add(ref)
@@ -747,8 +742,7 @@ To spawn an item, it has to be the active item. This serves as a way of confirmi
 			row.label(text='Collections', icon='OUTLINER_COLLECTION')
 			op = row.operator('spawner.textbox', icon='QUESTION', text='')
 			if len(blend.collections):
-				colBox.row().template_list('SPAWNER_GENERIC_SPAWN_UL_List', 'Collections',
-										   blend, 'collections', prefs, 'col_index')
+				colBox.row().template_list('SPAWNER_GENERIC_SPAWN_UL_List', 'Collections', blend, 'collections', prefs, 'col_index')
 				op.text = '''Here are the collections you can spawn!
 To spawn an item, it has to be the active item. This serves as a way of confirming.'''
 				op.icons = 'OUTLINER_COLLECTION,CHECKMARK'

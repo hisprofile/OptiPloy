@@ -10,10 +10,9 @@ from bpy.props import (StringProperty, CollectionProperty,
 from bpy.types import (UIList, PropertyGroup,
                         AddonPreferences, Operator)
 
-from bpy_extras.io_utils import ImportHelper
 from .panel import SPAWNER_OT_genericText
 
-no_recursion = False
+ref_keeper = dict()
 
 def only(item, *argv):
     for arg in argv:
@@ -31,26 +30,26 @@ def exists(self, context):
 
 def blends_CB(self, context):
     prefs = context.preferences.addons[base_package].preferences
-    items = []
+    ref_keeper.clear()
     for n, blend in enumerate(prefs.blends):
-        items.append((str(n), blend.name, 'This is a .blend file!', 'BLENDER', n))
-    return items
+        ref_keeper[blend] = blend.name
+        yield (str(n), ref_keeper[blend], 'This is a .blend file!', 'BLENDER', n)
 
 def folders_CB(self, context):
     prefs = context.preferences.addons[base_package].preferences
-    items = []
+    ref_keeper.clear()
     for n, folder in enumerate(prefs.folders):
         icon = 'FILE_FOLDER' if not folder.category else 'ASSET_MANAGER'
-        items.append((str(n), folder.name, 'This is a folder!', icon, n))
-    return items
+        ref_keeper[folder] = folder.name
+        yield (str(n), ref_keeper[folder], 'This is a folder!', icon, n)
 
 def folders_blend_CB(self, context):
     prefs = context.preferences.addons[base_package].preferences
-    items = []
+    ref_keeper.clear()
     folder = context.scene.optiploy_props.selected_folder
     for n, blend in enumerate(prefs.folders[int(folder)].blends):
-        items.append((str(n), blend.name, 'This is a .blend file!', 'BLENDER', n))
-    return items
+        ref_keeper[blend] = blend.name
+        yield (str(n), ref_keeper[blend], 'This is a .blend file!', 'BLENDER', n)
 
 def redraw(self, context: bpy.types.Context):
     print(dir(context.area), dir(context.space_data), dir(context.window), dir(context.ui_list))
@@ -945,7 +944,6 @@ classes = [
 def register():
     for i in classes:
         bpy.utils.register_class(i)
-
     bpy.types.Scene.optiploy_props = PointerProperty(type=spawner_props)
 
 def unregister():

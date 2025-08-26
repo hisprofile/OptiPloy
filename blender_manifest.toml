@@ -1,9 +1,9 @@
 schema_version = "1.0.0"
 
 id = "optiploy"
-version = "1.6.2"
+version = "1.6.3"
 name = "optiploy"
-tagline = "Append and link rigs, save space like never before"
+tagline = "Improve your workflow with smarter linking tools!"
 maintainer = "hisanimations <hisprofile029@gmail.com"
 type = "add-on"
 tags = ["Pipeline", "Animation", "Rigging", "Import-Export"]

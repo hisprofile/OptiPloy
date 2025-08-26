@@ -1,8 +1,8 @@
 bl_info = {
     "name" : 'OptiPloy' ,
-    "description" : "Append things like rigs while linking all the useless data back to the source .blend file",
+    "description" : "Improve your workflow with smarter linking tools!",
     "author" : "hisanimations",
-    "version" : (1, 6, 2),
+    "version" : (1, 6, 3),
     "blender" : (3, 0, 0),
     "location" : "View3d > Spawner",
     "support" : "COMMUNITY",
