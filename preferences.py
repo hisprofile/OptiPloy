@@ -10,9 +10,17 @@ from bpy.props import (StringProperty, CollectionProperty,
 from bpy.types import (UIList, PropertyGroup,
                         AddonPreferences, Operator)
 
-from .panel import SPAWNER_OT_genericText
-
 ref_keeper = dict()
+
+def update_ref_keeper(self, context: bpy.types.Context):
+    prefs = context.preferences.addons[__package__].preferences
+    ref_keeper.clear()
+    for blend in prefs.blends:
+        ref_keeper[blend] = blend.name
+    for folder in prefs.folders:
+        ref_keeper[folder] = folder.name
+        for blend in folder.blends:
+            ref_keeper[blend] = blend.name
 
 def only(item, *argv):
     for arg in argv:
@@ -30,30 +38,23 @@ def exists(self, context):
 
 def blends_CB(self, context):
     prefs = context.preferences.addons[base_package].preferences
-    ref_keeper.clear()
     for n, blend in enumerate(prefs.blends):
-        ref_keeper[blend] = blend.name
+        if not blend in ref_keeper: ref_keeper[blend] = blend.name
         yield (str(n), ref_keeper[blend], 'This is a .blend file!', 'BLENDER', n)
 
 def folders_CB(self, context):
     prefs = context.preferences.addons[base_package].preferences
-    ref_keeper.clear()
     for n, folder in enumerate(prefs.folders):
         icon = 'FILE_FOLDER' if not folder.category else 'ASSET_MANAGER'
-        ref_keeper[folder] = folder.name
+        if not folder in ref_keeper: ref_keeper[folder] = folder.name
         yield (str(n), ref_keeper[folder], 'This is a folder!', icon, n)
 
 def folders_blend_CB(self, context):
     prefs = context.preferences.addons[base_package].preferences
-    ref_keeper.clear()
     folder = context.scene.optiploy_props.selected_folder
     for n, blend in enumerate(prefs.folders[int(folder)].blends):
-        ref_keeper[blend] = blend.name
+        if not blend in ref_keeper: ref_keeper[blend] = blend.name
         yield (str(n), ref_keeper[blend], 'This is a .blend file!', 'BLENDER', n)
-
-def redraw(self, context: bpy.types.Context):
-    print(dir(context.area), dir(context.space_data), dir(context.window), dir(context.ui_list))
-    context.area.tag_redraw()
 
 class objects(PropertyGroup):
     name: StringProperty(default='')
@@ -65,7 +66,7 @@ class blends(PropertyGroup):
     objects: CollectionProperty(type=objects, name='Spawnables', description='List of spawnable items detected in this .blend file')
     collections: CollectionProperty(type=collections, name='Spawnables', description='List of spawnable items detected in this .blend file')
     filepath: StringProperty(name='Filepath', description='Path to a .blend file', options=set(), subtype='FILE_PATH', update=exists)
-    name: StringProperty(name='Name')#, update=sorter)
+    name: StringProperty(name='Name', update=update_ref_keeper)
     exists: BoolProperty(default=True)
 
     override_behavior: BoolProperty(default=False, name='Override Behavior')
@@ -94,7 +95,7 @@ class folders(PropertyGroup):
     blends: CollectionProperty(type=blends, name='.blend files', description='List of .blend files under this folder.')
     blend_index: IntProperty(default=0)
     filepath: StringProperty(name='Folder Path', description='Path to this directory', subtype='DIR_PATH', update=exists)
-    name: StringProperty(name='Name')#, options=set(), update=sorter)
+    name: StringProperty(name='Name', update=update_ref_keeper)
     exists: BoolProperty(default=False)
     category: BoolProperty(default=False)
     recursive: BoolProperty(name='Include subfolders', description='Should subfolders be scanned as well?', default=False)
@@ -185,12 +186,6 @@ class SPAWNER_GENERIC_UL_List(UIList):
 
 class blendentriespref(AddonPreferences):
     bl_idname = base_package
-
-    #def set_blend_show(self, value):
-    #    self['blend_more_info'] = value
-
-    #def get_blend_show(self):
-    #    return self['blend_more_info'] and not self['folder_more_info']
 
     def update_blend_show(self, context):
         self['folder_more_info'] = False
@@ -742,7 +737,7 @@ class SPAWNER_OT_SCAN(Operator):
 
         return {'FINISHED'}
     
-class SPAWNER_OT_ALPHA_SORT(SPAWNER_OT_genericText):
+class SPAWNER_OT_ALPHA_SORT(generictext):
     bl_idname = 'spawner.alpha_sort'
     bl_label = 'Sort by Alphabet'
     bl_description = 'Hold SHIFT to sort backwards'
@@ -756,7 +751,6 @@ class SPAWNER_OT_ALPHA_SORT(SPAWNER_OT_genericText):
 
     def invoke_extra(self, context, event):
         self._shift = event.shift
-        #return self.execute(context)
     
     def execute(self, context):
         prefs = context.preferences.addons[base_package].preferences
@@ -801,7 +795,7 @@ class SPAWNER_OT_ALPHA_SORT(SPAWNER_OT_genericText):
                 val = rev[n]
                 if val < i:
                     rev[n] += 1
-
+        update_ref_keeper(self, context)
         return {'FINISHED'}
     
 class SPAWNER_OT_MOVE(Operator):
@@ -819,8 +813,8 @@ class SPAWNER_OT_MOVE(Operator):
     def invoke(self, context, event):
         self._shift = event.shift
         return self.execute(context)
-
-    def execute(self, context):
+    
+    def move(self, context):
         prefs = context.preferences.addons[base_package].preferences
 
         B = self.blend
@@ -901,7 +895,11 @@ class SPAWNER_OT_MOVE(Operator):
             item.move(index, offset)
             prefs.col_index = offset
             return {'FINISHED'}
-        
+        return {'FINISHED'}
+
+    def execute(self, context):
+        self.move(context)
+        update_ref_keeper(self, context)
         return {'FINISHED'}
     
 class SPAWNER_OT_CONTEXT(Operator):

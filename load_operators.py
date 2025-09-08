@@ -1,9 +1,9 @@
 import bpy, os
 from . import base_package
 from bpy.types import Operator
-from bpy.props import *
+from bpy.props import (StringProperty, IntProperty, CollectionProperty, BoolProperty, EnumProperty)
 from .load_code import load_data
-
+from bpy.utils import register_classes_factory
 from pathlib import Path
 from .panel import options, options_icons, extra_types, extra_types_icons, draw_options, textBox
 
@@ -145,7 +145,6 @@ class SPAWNER_OT_SPAWNER(mod_saver):
 
 		if not os.path.exists(entry.filepath):
 			self.report({'ERROR'}, f"{entry.filepath} doesn't exist!")
-			#self.report({'ERROR'}, "The .blend file no longer exists!")
 			return {'CANCELLED'}
 		
 		try:
@@ -527,3 +526,19 @@ class SPAWNER_OT_link(Operator):
 				load_data(self, context, scene_viewlayer, ind_prefs=self, col=item)
 		
 		return {'FINISHED'}
+	
+classes = [
+	SPAWNER_OT_link,
+	SPAWNER_OT_genericText,
+	SPAWNER_OT_open_blend,
+	SPAWNER_OT_open_folder,
+	SPAWNER_OT_POST_OPTIMIZE,
+	SPAWNER_OT_SPAWNER,
+]
+
+r, ur = register_classes_factory(classes)
+
+def register():
+	r()
+def unregister():
+	ur()

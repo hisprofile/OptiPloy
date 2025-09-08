@@ -410,21 +410,14 @@ def draw_item(self:bpy.types.Menu, context):
 
 def add_optiploy_link(self:bpy.types.Menu, context):
 	layout = self.layout
-	#layout.separator()
 	layout.operator('spawner.link', icon='LINK_BLEND')
 
 classes = [
 	SPAWNER_PT_panel,
 	SPAWNER_GENERIC_SPAWN_UL_List,
-	SPAWNER_OT_SPAWNER,
-	SPAWNER_OT_POST_OPTIMIZE,
-	SPAWNER_OT_genericText,
 	SPAWNER_PT_extra_settings,
 	SPAWNER_PT_folder_settings,
 	SPAWNER_PT_blend_settings,
-	SPAWNER_OT_open_blend,
-	SPAWNER_OT_open_folder,
-	SPAWNER_OT_link
 ]
 
 def register():
