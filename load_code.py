@@ -82,7 +82,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 
 			referenced_ids.add(ref)
 			recursive_get_referenced_ids(
-				ref_map=ref_map, id=ref, referenced_ids=referenced_ids, visited=visited, level=level+1#, line=line
+				ref_map=ref_map, id=ref, referenced_ids=referenced_ids, visited=visited, level=level+1
 			)
 		if OP_keep: id['OP_keep'] = OP_keep
 
@@ -91,16 +91,9 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 		referenced_ids = set()
 		rev_leveled_map[id] = 0
 		recursive_get_referenced_ids(
-			ref_map=ref_map, id=id, referenced_ids=referenced_ids, visited=set(), level=0#, line=[id]
+			ref_map=ref_map, id=id, referenced_ids=referenced_ids, visited=set(), level=0
 		)
 		return referenced_ids
-	
-	# Need local versions of bpy_extras.id_map_utils to modify how I see fit.
-	# Changes include:
-
-	# Finding at what level IDs are referenced
-
-	# Preventing IDs from being processed if they reference an ID who has referenced the current ID
 
 	# Collections and objects are overridden by default through override_hierarchy_create
 	override_support = (
@@ -157,41 +150,6 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 		return spawned
 
 	def recurse2(ID, level=0, line:list=[]):
-		'''
-
-		This function was the missing piece of a puzzle. OptiPloy is complete now. No more errors when spawning.
-		I'd been searching for this functionality for EVER. Finally found it, without AI and without searching.
-		I feel like I have to flaunt it, idk
-		I know how simple it is, but what it does is so crucial
-
-		UPDATE:
-		I was so wrong when I wrote that and I shattered into pieces when I realized it didn't work.
-		Now it does!
-		The old version that message is referring to did not account for loops in the user hierarchy. This one does.
-		If ID2 is referencing/using ID1 but has already been in the "line", we need to stop here.
-		So instead of infinitely looping, lets mention ID1 again in the overriding process specifically for ID2.
-		So after the duplicate ID1 has been overridden, we can replace it with the original ID1 that was overridden.
-
-		We can't replace the linked IDs with the overridden IDs or else the overridden IDs will reference themselves.
-		THAT causes a data corruption error. But that's not happening in this case.
-
-		Now there are zero errors :)
-
-		UPDATE 2 may 24 2025:
-		sisyphean struggle
-
-		UPDATE 3 may 25 2025:
-		i talked with zayjax today about their rigs, and how one of their very complicated rigs broke the importer.
-		i also told them how i worked around it and fixed the importer. i had him try the importer on his many rigs,
-		and it worked. EVERY. SINGLE. TIME. could this be it??
-
-		UPDATE 4 may 27 2025:
-		i talked with dotflare this time about one of their problems. there was an issue in the way objects and collections
-		are handled if they are indirectly referenced by the import. if they are used, they are prone to getting deleted
-		because they have no users. somehow. so i attach them to the ID that uses those objects to keep them from getting
-		deleted.
-
-		'''
 		
 		if rev_leveled_map.get(ID, -1) >= level: return
 		if type(ID) != bpy.types.Key:
@@ -268,8 +226,6 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 			override_order(col)
 			rev_leveled_map.clear()
 			refd_by.clear()
-
-	#return {'FINISHED'}
 
 	id_ref = get_id_reference_map()
 	id_ref = get_all_referenced_ids(spawned, id_ref)
@@ -363,7 +319,8 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 		clean_remap(bpy.types.Volume)
 	if ind_prefs.localize_grease_pencil:
 		clean_remap(bpy.types.GreasePencil)
-		clean_remap(bpy.types.GreasePencilv3)
+		if getattr(bpy.types, 'GreasePencilv3', None):
+			clean_remap(bpy.types.GreasePencilv3)
 
 	if getattr(op, 'do_storage_benchmark', False):
 		return spawned
@@ -412,6 +369,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 	gatherings['override'].clear()
 	arms.clear()
 	additional.clear()
+	prime_override.clear()
 	bone_shapes.clear()
 	del sorted_refs, map_to_do, gatherings
 

@@ -156,11 +156,6 @@ class SPAWNER_OT_SPAWNER(mod_saver):
 		except:
 			self.report({'ERROR'}, f'The .blend you are trying to open is corrupt!')
 			return {'CANCELLED'}
-		
-		import_scene = bpy.data.scenes.get(self.scene, None) or context.scene
-		view_layer = getattr(import_scene, 'view_layers', [context.view_layer])[0] if self.scene else context.view_layer
-
-		scene_viewlayer = [import_scene, view_layer]
 
 		if obj:
 			if To.objects[0] == None:
@@ -174,7 +169,12 @@ class SPAWNER_OT_SPAWNER(mod_saver):
 				return {'CANCELLED'}
 			return load_data(self, context, scene_viewlayer, ind_prefs=prefs, col=To.collections[0])
 		
-		self.report({'WARNING'}, 'What?')
+		import_scene = bpy.data.scenes.get(self.scene, None) or context.scene
+		view_layer = getattr(import_scene, 'view_layers', [context.view_layer])[0] if self.scene else context.view_layer
+
+		scene_viewlayer = [import_scene, view_layer]
+		
+		self.report({'WARNING'}, 'What? Neither object nor collection was specified for an import!')
 		return {'CANCELLED'}
 	
 	def draw(self, context):
@@ -197,11 +197,6 @@ class SPAWNER_OT_POST_OPTIMIZE(mod_saver):
 	bl_options = {'UNDO'}
 
 	def execute(self, context):
-		#print(context.space_data, context.area.type, context.window, context.screen)
-		#return {'CANCELLED'}
-
-		#import_scene = bpy.data.scenes.get(self.scene, None) or context.scene
-		#view_layer = getattr(import_scene, 'view_layers', [context.view_layer])[0] if self.scene else context.view_layer
 
 		scene_viewlayer = [context.scene, context.view_layer]
 
@@ -214,6 +209,8 @@ class SPAWNER_OT_POST_OPTIMIZE(mod_saver):
 		objs = set(filter(lambda a: not (True in [col in cols for col in a.users_collection]), objs))  # remove objects if their collection is selected
 		objs = set(filter(lambda a: not (getattr(a, 'parent', False) in objs), objs)) # only get the top most selected objects
 		true_ids = set()
+		
+		# we cannot effectively localize objects if the collection they are in is not localized
 		for id in objs:
 			for col in id.users_collection:
 				if col.library:
@@ -221,6 +218,7 @@ class SPAWNER_OT_POST_OPTIMIZE(mod_saver):
 					break
 			else:
 				true_ids.add(id)
+		
 		ids = true_ids.union(cols)
 		prefs = context.preferences.addons[base_package].preferences
 		for id in ids: 
@@ -366,26 +364,15 @@ class SPAWNER_OT_open_folder(generictext):
 	category_name: StringProperty(default='New Category')
 
 	def invoke(self, context, event):
-		blendPath = Path(str(self.path))
 		self.category_name = 'New Category'
 
 		if (event.ctrl + event.shift + event.alt) > 1:
 			return {'CANCELLED'}
-			self.text = 'tee hee no'
-			self.icons = 'NONE'
-			self.size='56'
-			self.width = 310
-			return context.window_manager.invoke_props_dialog(self, width=self.width)
 
 		if event.ctrl:
-			#for lib in bpy.data.libraries:
-			#	blendPathLib = Path(bpy.path.abspath(lib.filepath))
-			#	if blendPathLib == blendPath: lib.reload(); return {'FINISHED'}
 			return {'FINISHED'}
 		
 		if event.shift:
-			#import subprocess
-			#subprocess.Popen([bpy.app.binary_path, blendPath])
 			return {'FINISHED'}
 		
 		if event.alt:

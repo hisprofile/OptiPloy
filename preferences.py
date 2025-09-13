@@ -236,13 +236,65 @@ class blendentriespref(AddonPreferences):
 
     importer: EnumProperty(items=(('FAST', 'Fast', 'Fast importer'), ('STABLE', 'Stable', 'Stable importer')), name='Importer', description='Which importer to use', default='FAST')
 
+    def set_ops(self, op, type):
+        alpha_text = '''This can only be undone through reverting to saved preferences.
+Hold SHIFT to reverse sort.'''
+        alpha_icons = 'SORTALPHA,EVENT_SHIFT'
+        alpha_size = '56,56'
+        op.text = alpha_text
+        op.icons = alpha_icons
+        op.size = alpha_size
+        #match type:
+        if type == 'BLEND':
+            op.blend=True
+            op.folder = False
+            op.object = False
+            op.collection = False
+            return
+        elif type == 'FOLDER':
+            op.blend = False
+            op.folder = True
+            op.object = False
+            op.collection = False
+            return
+        elif type == 'FOLDER_BLEND':
+            op.blend = True
+            op.folder = True
+            op.object = False
+            op.collection = False
+            return
+        elif type == 'BLEND_OBJECT':
+            op.blend = True
+            op.folder = False
+            op.object = True
+            op.collection = False
+            return
+        elif type == 'BLEND_COLLECTION':
+            op.blend = True
+            op.folder = False
+            op.object = False
+            op.collection = True
+            return
+        elif type == 'FOLDER_BLEND_OBJECT':
+            op.blend = True
+            op.folder = True
+            op.object = True
+            op.collection = False
+            return
+        elif type == 'FOLDER_BLEND_COLLECTION':
+            op.blend = True
+            op.folder = True
+            op.object = False
+            op.collection = True
+            return
+        return
+
     def draw(self, context):
         layout = self.layout
         alpha_text = '''This can only be undone through reverting to saved preferences.
 Hold SHIFT to reverse sort.'''
         alpha_icons = 'SORTALPHA,EVENT_SHIFT'
         alpha_size = '56,56'
-
         op = layout.row().operator('spawner.textbox', text="Assets not showing?", icon='QUESTION')
         op.text = 'In OptiPloy, collections or objects need to be marked as "Assets" if they are to be used. If the scanning isn\'t returning any results, ensure objects or collections are marked as assets.'
         op.size = '58'
@@ -274,6 +326,7 @@ Hold SHIFT to reverse sort.'''
         col.separator()
 
         op = col.operator('spawner.alpha_sort', text='', icon='SORTALPHA')
+        
         op.text = alpha_text
         op.icons = alpha_icons
         op.size = alpha_size
