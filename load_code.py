@@ -7,7 +7,6 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 	from bpy.types import ID
 
 	prefs = context.preferences.addons[base_package].preferences
-	props = context.scene.optiploy_props
 	scene, view_layer = scene_viewlayer
 	scene: bpy.types.Scene
 	view_layer: bpy.types.ViewLayer
