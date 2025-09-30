@@ -79,7 +79,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 				continue
 
 			if getattr(ref, 'optiploy_id_behavior', 'DO_NOTHING') == 'STAY_LINKED':
-				return
+				continue
 			
 			# example use case: if the bone shape collection is for some reason referenced, and outside of the scene collection, then don't process it!
 			if isinstance(ref, bpy.types.Collection) and not (ref in scene_cols) and not (getattr(id.override_library, 'reference', None) == ref):
