@@ -5,7 +5,7 @@ import bpy, os
 from bpy.types import (UIList, Panel, Operator, Menu)
 from bpy.props import *
 from collections import defaultdict
-
+from id_tools import return_ids_set
 from pathlib import Path
 
 folder_path = os.path.dirname(__file__)
@@ -80,7 +80,7 @@ class SPAWNER_GENERIC_SPAWN_UL_List(UIList):
 			active_data, active_propname,
 			index):
 		prefs = context.preferences.addons[base_package].preferences
-		props = context.scene.optiploy_props
+		props = context.window_manager.optiploy_props
 		itemType = item.bl_rna.identifier
 		Type = 'OBJECT' if itemType == 'objects' else 'COLLECTION'
 		Icon = 'OBJECT_DATA' if itemType == 'objects' else 'OUTLINER_COLLECTION'
@@ -134,7 +134,7 @@ class SPAWNER_PT_folder_settings(Panel):
 
 	def draw(self, context):
 		prefs = context.preferences.addons[base_package].preferences
-		props = context.scene.optiploy_props
+		props = context.window_manager.optiploy_props
 		layout = self.layout
 		layout.label(text='Folder Settings')
 
@@ -161,7 +161,7 @@ class SPAWNER_PT_blend_settings(Panel):
 
 	def draw(self, context):
 		prefs = context.preferences.addons[base_package].preferences
-		props = context.scene.optiploy_props
+		props = context.window_manager.optiploy_props
 		layout = self.layout
 		folder = None
 		if props.view == 'BLENDS':
@@ -194,7 +194,7 @@ class SPAWNER_PT_extra_settings(Panel):
 	
 	def draw(self, context):
 		prefs = context.preferences.addons[base_package].preferences
-		props = context.scene.optiploy_props
+		props = context.window_manager.optiploy_props
 		layout = self.layout
 		layout.label(text=self.bl_label)
 		box = layout.box()
@@ -209,7 +209,7 @@ class SPAWNER_PT_panel(Panel):
 	def draw(self, context):
 		prefs = context.preferences.addons[base_package].preferences
 		data = prefs
-		props = context.scene.optiploy_props
+		props = context.window_manager.optiploy_props
 		layout = self.layout
 		box = layout.box()
 		row = box.row()
@@ -352,14 +352,14 @@ To spawn an item, it has to be the active item. This serves as a way of confirmi
 			box = layout.box()
 			draw_options(prefs, box, options, options_icons)
 			box.popover('SPAWNER_PT_extra_settings')
-			layout.separator()
-			op = layout.operator('spawner.textbox', text='Donate')
-			op.text = '''Like the add-on? Consider supporting my work:
-LINK:https://ko-fi.com/hisanimations|NAME:Ko-Fi
-LINK:https://superhivemarket.com/products/optiploy-pro|NAME:Buy OptiPloy Pro on Superhive'''
-			op.size = '56,56,56'
-			op.icons = 'BLANK1,NONE,NONE'
-			op.width = 350
+#			layout.separator()
+#			op = layout.operator('spawner.textbox', text='Donate')
+#			op.text = '''Like the add-on? Consider supporting my work:
+#LINK:https://ko-fi.com/hisanimations|NAME:Ko-Fi
+#LINK:https://superhivemarket.com/products/optiploy-pro|NAME:Buy OptiPloy Pro on Superhive'''
+#			op.size = '56,56,56'
+#			op.icons = 'BLANK1,NONE,NONE'
+#			op.width = 350
 
 
 
@@ -405,8 +405,12 @@ def textBox(self, sentence, icon='NONE', line=56):
 
 def draw_item(self:bpy.types.Menu, context):
 	layout = self.layout
+	ids = return_ids_set(context)
+	if not ids: return None
 	layout.separator()
 	layout.operator('spawner.post_optimize')
+	layout.menu('SPAWNER_MT_id_tools')
+	layout.popover('SPAWNER_PT_id_behavior')
 
 def add_optiploy_link(self:bpy.types.Menu, context):
 	layout = self.layout
@@ -421,6 +425,7 @@ classes = [
 ]
 
 def register():
+	SPAWNER_PT_panel.bl_category = bpy.context.preferences.addons[base_package].preferences.category
 	for i in classes:
 		bpy.utils.register_class(i)
 	bpy.types.VIEW3D_MT_object.append(draw_item)

@@ -4,11 +4,15 @@ from . import base_package
 import os
 from glob import glob
 
+from .load_operators import generictext
+
 from bpy.props import (StringProperty, CollectionProperty,
                         IntProperty, EnumProperty,
                         BoolProperty, PointerProperty)
 from bpy.types import (UIList, PropertyGroup,
                         AddonPreferences, Operator)
+
+from .panel import SPAWNER_PT_panel
 
 ref_keeper = dict()
 
@@ -51,7 +55,7 @@ def folders_CB(self, context):
 
 def folders_blend_CB(self, context):
     prefs = context.preferences.addons[base_package].preferences
-    folder = context.scene.optiploy_props.selected_folder
+    folder = context.window_manager.optiploy_props.selected_folder
     for n, blend in enumerate(prefs.folders[int(folder)].blends):
         if not blend in ref_keeper: ref_keeper[blend] = blend.name
         yield (str(n), ref_keeper[blend], 'This is a .blend file!', 'BLENDER', n)
@@ -193,6 +197,13 @@ class blendentriespref(AddonPreferences):
     def update_folder_show(self, context):
         self['blend_more_info'] = False
 
+    def category_update(self, context):
+        panel = SPAWNER_PT_panel
+        if 'bl_rna' in panel.__dict__:
+            bpy.utils.unregister_class(panel)
+        panel.bl_category = self.category
+        bpy.utils.register_class(panel)
+
     blends: CollectionProperty(type=blends)
     blend_index: IntProperty(name='Blend Entry Index', min=0, options=set())
     selected_blend: EnumProperty(items=blends_CB, options=set(), name='Selected .blend File', description='Selected .blend file')
@@ -235,6 +246,8 @@ class blendentriespref(AddonPreferences):
     execute_scripts: BoolProperty(default=True, name='Execute Attached Scripts', options=set())
 
     importer: EnumProperty(items=(('FAST', 'Fast', 'Fast importer'), ('STABLE', 'Stable', 'Stable importer')), name='Importer', description='Which importer to use', default='FAST')
+
+    category: StringProperty(default='OptiPloy', name='Panel Category', description='The Viewport category to place OptiPloy under', update=category_update)
 
     def set_ops(self, op, type):
         alpha_text = '''This can only be undone through reverting to saved preferences.
@@ -295,6 +308,9 @@ Hold SHIFT to reverse sort.'''
 Hold SHIFT to reverse sort.'''
         alpha_icons = 'SORTALPHA,EVENT_SHIFT'
         alpha_size = '56,56'
+        
+        layout.prop(self, 'category')
+        
         op = layout.row().operator('spawner.textbox', text="Assets not showing?", icon='QUESTION')
         op.text = 'In OptiPloy, collections or objects need to be marked as "Assets" if they are to be used. If the scanning isn\'t returning any results, ensure objects or collections are marked as assets.'
         op.size = '58'
@@ -974,6 +990,18 @@ class spawner_props(PropertyGroup):
     name='View', description='View', options=set()
     )
 
+    @classmethod
+    def register(cls):
+        from .props_append import extra_register
+        for reg in extra_register:
+            reg(cls)
+    
+    @classmethod
+    def unregister(cls):
+        from .props_append import extra_unregister
+        for unreg in extra_unregister:
+            unreg(cls)
+
 classes = [
     objects,
     collections,
@@ -995,9 +1023,9 @@ classes = [
 def register():
     for i in classes:
         bpy.utils.register_class(i)
-    bpy.types.Scene.optiploy_props = PointerProperty(type=spawner_props)
+    bpy.types.WindowManager.optiploy_props = PointerProperty(type=spawner_props)
 
 def unregister():
     for i in reversed(classes):
         bpy.utils.unregister_class(i)
-    del bpy.types.Scene.optiploy_props
+    del bpy.types.WindowManager.optiploy_props

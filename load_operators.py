@@ -131,8 +131,59 @@ class SPAWNER_OT_SPAWNER(mod_saver):
 		self.report({'INFO'}, f'From {format_size(old_size)} to {format_size(new_size)} with OptiPloy')
 
 		return {'FINISHED'}
+	
+	def load_data(self, context):
+		obj = self.object
+		col = self.collection
+		prefs, entry = self.get_prefs(context)
 
+		if not os.path.exists(entry.filepath):
+			self.report({'ERROR'}, f"{entry.filepath} doesn't exist!")
+			return {'CANCELLED'}
+		
+		try:
+			with bpy.data.libraries.load(entry.filepath, link=True, relative=True) as (From, To):
+				if obj:
+					To.objects = [obj]
+				if col:
+					To.collections = [col]
+		except:
+			self.report({'ERROR'}, f'The .blend you are trying to open is corrupt!')
+			return {'CANCELLED'}
+		
+		import_scene = bpy.data.scenes.get(self.scene, None) or context.scene
+		view_layer = import_scene.view_layers[0] if self.scene else context.view_layer
+
+		scene_viewlayer = [import_scene, view_layer]
+
+		if obj:
+			if To.objects[0] == None:
+				self.report({'ERROR'}, f'Object "{obj}" could not be found in {os.path.basename(entry.filepath)}')
+				return {'CANCELLED'}
+			return load_data(self, context, scene_viewlayer, ind_prefs=prefs, obj=To.objects[0])
+		
+		if col:
+			if To.collections[0] == None:
+				self.report({'ERROR'}, f'Collection "{col}" could not be found in {os.path.basename(entry.filepath)}')
+				return {'CANCELLED'}
+			return load_data(self, context, scene_viewlayer, ind_prefs=prefs, col=To.collections[0])
+		
 	def execute(self, context):
+		import time
+		if not self.activate: return {'CANCELLED'}
+		prefs = context.preferences.addons[base_package].preferences
+		if self.do_storage_benchmark:
+			#if time.time() - self._time < 1.5:
+			#	self.report({'WARNING'}, 'Please wait 1.5 seconds before executing. ')
+			return self.load_test(context)
+		t1 = time.time()
+		return_val =  self.load_data(context)
+		#self.report({'INFO'}, f'Import time {round(time.time()-t1, 7)}s')
+		if return_val == {'FINISHED'}: return return_val
+		self.report({'WARNING'}, 'What?')
+		return {'CANCELLED'}
+
+	'''def execute(self, context):
 		if not self.activate: return {'CANCELLED'}
 		if self.do_storage_benchmark:
 			return self.load_test(context)
@@ -175,7 +226,7 @@ class SPAWNER_OT_SPAWNER(mod_saver):
 		scene_viewlayer = [import_scene, view_layer]
 		
 		self.report({'WARNING'}, 'What? Neither object nor collection was specified for an import!')
-		return {'CANCELLED'}
+		return {'CANCELLED'}'''
 	
 	def draw(self, context):
 		sentences = f'''This is for checking how much storage you save with OptiPloy.
@@ -452,7 +503,7 @@ class SPAWNER_OT_link(Operator):
 
 	def invoke(self, context, event):
 		prefs = context.preferences.addons[base_package].preferences
-		props = context.scene.optiploy_props
+		props = context.window_manager.optiploy_props
 
 		[setattr(self, prop, getattr(prefs, prop)) for prop in [*options, *extra_types]]
 

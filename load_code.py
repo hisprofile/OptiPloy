@@ -1,6 +1,7 @@
 import bpy
 from . import base_package
 from collections import defaultdict
+import traceback
 
 def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlayer, *, post_process=False, ind_prefs=None, obj:bpy.types.Object=None, col:bpy.types.Collection=None, ):
 	from typing import Dict, Set
@@ -11,6 +12,8 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 	scene: bpy.types.Scene
 	view_layer: bpy.types.ViewLayer
 	activeCol = view_layer.active_layer_collection.collection
+	scene_objs = None
+	scene_cols = None
 
 	bone_shapes = set()
 	arms = set()
@@ -29,9 +32,15 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 
 	def clean_remap(TYPE):
 		for ID in filter(lambda a: isinstance(a, TYPE), gatherings['override']):
+			if getattr(ID, 'optiploy_id_behavior', 'DO_NOTHING') == 'PREFER_OVERRIDE':
+				continue
 			map_to_do[ID] = ID.make_local()
 		remap()
 		for ID in filter(lambda a: isinstance(a, TYPE), gatherings['linked']):
+			if getattr(ID, 'optiploy_id_behavior', 'DO_NOTHING') == 'PREFER_OVERRIDE':
+				continue
+			if getattr(ID, 'optiploy_id_behavior', 'DO_NOTHING') == 'STAY_LINKED':
+				continue
 			map_to_do[ID] = ID.make_local()
 		remap()
 
@@ -55,33 +64,40 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 			return
 		visited.add(id)
 
+		if getattr(id, 'optiploy_id_behavior', 'DO_NOTHING') == 'STAY_LINKED':
+			return
+
 		if isinstance(id, bpy.types.Object) and isinstance(getattr(id, 'data', None), bpy.types.Armature):
 			arms.add(id)
 			bone_shapes.update(set(bone.custom_shape for bone in id.pose.bones))
-		#line = list(line)
-		#if isinstance(id, bpy.types.Collection): input((id, line, level))
+			
 		OP_keep = list()
 		for ref in ref_map.get(id, []):
 			if (ref in bone_shapes) and (id in arms):
 				continue
 			if id in refd_by[ref]:
-				# if the current ID was already referenced by its reference, then don't process it.
 				continue
 
-			if isinstance(ref, bpy.types.Collection) and not (ref in tuple(scene.collection.children_recursive)) and not (getattr(id.override_library, 'reference', None) == ref): 
+			if getattr(ref, 'optiploy_id_behavior', 'DO_NOTHING') == 'STAY_LINKED':
+				return
+			
+			# example use case: if the bone shape collection is for some reason referenced, and outside of the scene collection, then don't process it!
+			if isinstance(ref, bpy.types.Collection) and not (ref in scene_cols) and not (getattr(id.override_library, 'reference', None) == ref):
 				OP_keep.append(ref)
 				continue
 
 			refd_by[id].add(ref)
 			rev_leveled_map[ref] = max(rev_leveled_map.get(ref, -1), level)
 
-			if isinstance(ref, bpy.types.Object) and not (ref in tuple(view_layer.objects)) and not (getattr(id.override_library, 'reference', None) == ref): 
+			# to minimize the amount of data overridden/localized, don't process object references if the object referenced is outside of the scene collection
+			if isinstance(ref, bpy.types.Object) and (not ref in scene_objs) and (not getattr(id.override_library, 'reference', None) == ref): 
 				OP_keep.append(ref)
-				if (not isinstance(ref, bpy.types.Object)) or (not isinstance(id, bpy.types.Object)): continue
+				if (not isinstance(ref, bpy.types.Object)) and (not isinstance(id, bpy.types.Object)):
+					continue
 
 			referenced_ids.add(ref)
 			recursive_get_referenced_ids(
-				ref_map=ref_map, id=ref, referenced_ids=referenced_ids, visited=visited, level=level+1
+				ref_map=ref_map, id=ref, referenced_ids=referenced_ids, visited=visited, level=level+1#, line=line
 			)
 		if OP_keep: id['OP_keep'] = OP_keep
 
@@ -90,9 +106,16 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 		referenced_ids = set()
 		rev_leveled_map[id] = 0
 		recursive_get_referenced_ids(
-			ref_map=ref_map, id=id, referenced_ids=referenced_ids, visited=set(), level=0
+			ref_map=ref_map, id=id, referenced_ids=referenced_ids, visited=set(), level=0#, line=[id]
 		)
 		return referenced_ids
+	
+	# Need local versions of bpy_extras.id_map_utils to modify how I see fit.
+	# Changes include:
+
+	# Finding at what level IDs are referenced
+
+	# Preventing IDs from being processed if they reference an ID who has referenced the current ID
 
 	# Collections and objects are overridden by default through override_hierarchy_create
 	override_support = (
@@ -108,7 +131,8 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 		bpy.types.Volume,
 		bpy.types.Armature,
 		bpy.types.Camera,
-		bpy.types.NodeTree
+		bpy.types.NodeTree,
+		#bpy.types.Action
 		#bpy.types.ShaderNodeTree,
 		#bpy.types.GeometryNodeTree,
 		#bpy.types.Image,
@@ -125,9 +149,14 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 		rev_l = list(reversed(sorted(list(
 				rev_leveled_map.items()
 			) + additional, key=lambda a: a[1])))
-
+		
+		#print(rev_l)
+		
 		for ID, _ in rev_l:
 			ID: bpy.types.ID
+			# if all users of an ID are linked when we attempt to override the ID, nothing will happen.
+			# so we have to force a local user to use it so we get something in return.
+			# i don't remember what i was testing that made me implement this :/
 			scene['test_prop'] = ID
 			possible_override = ID.override_create(remap_local_usages=True)
 			del scene['test_prop']
@@ -148,30 +177,43 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 				old, spawned = ID, possible_override
 		return spawned
 
-	def recurse2(ID, level=0, line:list=[]):
+	def build_user_hierarchy(ID, level=0, line:list=[]):
 		
 		if rev_leveled_map.get(ID, -1) >= level: return
 		if type(ID) != bpy.types.Key:
 			rev_leveled_map[ID] = level
+		
 		line = list(line)
 		line.append(ID)
+
 		
 		refs = bpy.data.user_map().get(ID, [])
 		# refs is the list of IDs that are using the given ID
-		#if isinstance(ID, bpy.types.Object): input((ID.name, line))
 		for ref in refs:
+			# if the ID is referencing itself, continue
 			if ref == ID: continue
+
+			# if the reference is a shapekey, and the referencer ID is MESH, continue.
+			# otherwise, they will fall into a loop of infinite references
 			if type(ref) == bpy.types.Key:
 				if getattr(ID, 'shape_keys', None) == ID: continue
+			
+			# if the reference is not linked, then there's no point. continue
 			if getattr(ref, 'library', None) == None: continue
+			
+			# if the ID has already been referenced by its reference, continue
 			if ID in refd_by[ref]:
 				continue
 			refd_by[ID].add(ref)
+			
+			# if the reference has already been processed, then there is a circular reference loop and we need to handle it.
+			# we will make a duplicate specifically for the referencer. when the duplicated reference gets overridden,
+			# we will immediately replace it with the original overridden reference to maintain the circular reference loop.
 			if ref in line:
 				additional.append((ID, line.index(ref)-1))
 				continue
 
-			recurse2(ref, level + 1, line)
+			build_user_hierarchy(ref, level + 1, line)
 
 	if obj:
 		if not obj in list(view_layer.objects):
@@ -192,7 +234,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 				if parent in list(view_layer.objects): continue
 				col_to_link.objects.link(parent)
 			rev_leveled_map[obj] = 0
-			recurse2(obj, 1)
+			build_user_hierarchy(obj, 1)
 			spawned = override_order(obj)
 			override_order(obj)
 			rev_leveled_map.clear()
@@ -217,14 +259,17 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 			col = new_col
 			spawned = col
 		else:
-			recurse2(col, 0, [])
+			build_user_hierarchy(col, 0, [])
 			for object in list(col.all_objects):
 				if object.parent: continue
-				recurse2(object, 0, [])
+				build_user_hierarchy(object, 0, [])
 			spawned = override_order(col)
 			override_order(col)
 			rev_leveled_map.clear()
 			refd_by.clear()
+
+	scene_objs = tuple(scene.collection.all_objects)
+	scene_cols = tuple(scene.collection.children_recursive)
 
 	id_ref = get_id_reference_map()
 	id_ref = get_all_referenced_ids(spawned, id_ref)
@@ -237,7 +282,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 
 	rev_leveled_map.clear()
 	refd_by.clear()
-
+	#if False:#prefs.aggressive_overriding:
 	for ID in filter(lambda a: getattr(a, 'library', None) != None, sorted_refs):
 		if isinstance(ID, override_support):
 			possible_override = ID.override_create(remap_local_usages=True)
@@ -256,7 +301,9 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 				ID = possible_override
 
 		gatherings['linked'].append(ID)
-	
+	#else:
+	#	[gatherings['linked'].append(ID) for ID in filter(lambda a: getattr(a, 'library', None) != None, sorted_refs)]
+
 	for ID in filter(lambda a: getattr(a, 'override_library', None) != None, sorted_refs):
 		if ID.override_library.reference in gatherings['linked']:
 			gatherings['linked'].remove(ID.override_library.reference)
@@ -338,11 +385,23 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 	context.scene['new_spawn'] = spawned # assign the newly spawned item to a globally accessible variable, giving developers the opportunity to further modify data in the scripts execution stage
 	scene['optiploy_last_spawned'] = spawned
 	context.scene['optiploy_last_spawned'] = spawned
-	if prefs.execute_scripts:
-		for text in filter(lambda a: isinstance(a, bpy.types.Text), gatherings['linked']):
-			text.as_module()
 
-	scn = context.scene
+	if prefs.execute_scripts:
+		script_exec_failed = False
+		for text in filter(lambda a: isinstance(a, bpy.types.Text), gatherings['linked']):
+			try:
+				text.as_module()
+			except Exception as err:
+				script_exec_failed = True
+				print(f'{repr(text)}: Failed to execute! Reason:')
+				traceback.print_exc()
+				op.report({'ERROR'}, f'{text.name}: {type(err).__name__}: {err}')
+				print('\n')
+
+		if script_exec_failed:
+			op.report({'ERROR'}, 'Script(s) failed to execute. Read console for information!')
+
+	scn = scene
 
 	# init rigid body physics
 	for id in filter(lambda a: isinstance(a, bpy.types.Object), gatherings['override']):

@@ -2,8 +2,8 @@ bl_info = {
     "name" : 'OptiPloy' ,
     "description" : "Improve your workflow with smarter linking tools!",
     "author" : "hisanimations",
-    "version" : (1, 6, 3),
-    "blender" : (3, 0, 0),
+    "version" : (1, 7, 0),
+    "blender" : (3, 4, 0),
     "location" : "View3d > Spawner",
     "support" : "COMMUNITY",
     "category" : "Assets",
@@ -11,15 +11,19 @@ bl_info = {
 }
 
 base_package = __package__
-from . import preferences, panel
+from . import preferences, panel, load_operators, id_tools
 
 def register():
     preferences.register()
     panel.register()
+    load_operators.register()
+    id_tools.register()
 
 def unregister():
     preferences.unregister()
     panel.unregister()
+    load_operators.unregister()
+    id_tools.unregister()
 
 if __name__ == '__main__':
     register()
