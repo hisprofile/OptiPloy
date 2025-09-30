@@ -110,14 +110,6 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 		)
 		return referenced_ids
 	
-	# Need local versions of bpy_extras.id_map_utils to modify how I see fit.
-	# Changes include:
-
-	# Finding at what level IDs are referenced
-
-	# Preventing IDs from being processed if they reference an ID who has referenced the current ID
-
-	# Collections and objects are overridden by default through override_hierarchy_create
 	override_support = (
 		bpy.types.Mesh,
 		bpy.types.Material,
