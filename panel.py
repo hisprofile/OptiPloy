@@ -5,7 +5,7 @@ import bpy, os
 from bpy.types import (UIList, Panel, Operator, Menu)
 from bpy.props import *
 from collections import defaultdict
-from id_tools import return_ids_set
+from .id_tools import return_ids_set
 from pathlib import Path
 
 folder_path = os.path.dirname(__file__)

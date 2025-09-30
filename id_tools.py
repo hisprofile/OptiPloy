@@ -86,7 +86,7 @@ def template_any_ID(layout: bpy.types.UILayout, data, property: str, type_proper
 
 def return_ids(context):
     if context.area.type in {'OUTLINER', 'VIEW_3D'}:
-        return context.selected_ids
+        return getattr(context, 'selected_ids', None)
     elif getattr(context, 'id', None):
         return context.id
     elif context.area.type == 'PROPERTIES':
@@ -369,6 +369,7 @@ class SPAWNER_MT_id_tools(Menu):
 
 def menu_func(self: bpy.types.Menu, context):
     global floating_id
+    if not return_ids_set(context): return
     if context.area.type == 'OUTLINER':
         self.layout.separator()
         self.layout.menu(SPAWNER_MT_id_tools.__name__, text='OptiPloy ID Tools')
