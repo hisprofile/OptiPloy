@@ -220,7 +220,16 @@ class blendentriespref(AddonPreferences):
 
     null: IntProperty(min=0, max=0)
 
-    to_cursor: BoolProperty(default=True, name='Move Parents to Cursor', options=set())
+    #to_cursor: BoolProperty(default=True, name='Move Parents to Cursor', options=set())
+    placement_type: EnumProperty(
+        items=(
+            ('BY_ORIGIN', 'Place By Origin', 'Place objects by moving their origin to the cursor'),
+            ('BY_BOUNDS', 'Place By Bounds', 'Place objects by centering the overall bounding box to the cursor')
+        ),
+        name='Placement Type',
+        default='BY_BOUNDS',
+        description='How objects should be positioned when spawning '
+    )
 
     localize_collections:   BoolProperty(name='Localize collections', description='Fully localize new collections. Will not include new objects from the source .blend file',default=True, options=set())
     localize_objects:       BoolProperty(default=True, name='Localize objects', options=set())

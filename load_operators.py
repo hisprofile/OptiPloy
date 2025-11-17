@@ -178,55 +178,10 @@ class SPAWNER_OT_SPAWNER(mod_saver):
 			return self.load_test(context)
 		t1 = time.time()
 		return_val =  self.load_data(context)
-		#self.report({'INFO'}, f'Import time {round(time.time()-t1, 7)}s')
+		print(f'OptiPloy: Import time {round(time.time()-t1, 7)}s')
 		if return_val == {'FINISHED'}: return return_val
 		self.report({'WARNING'}, 'What?')
 		return {'CANCELLED'}
-
-	'''def execute(self, context):
-		if not self.activate: return {'CANCELLED'}
-		if self.do_storage_benchmark:
-			return self.load_test(context)
-		prefs = context.preferences.addons[base_package].preferences
-		obj = self.object
-		col = self.collection
-
-		
-		prefs, entry = self.get_prefs(context)
-
-		if not os.path.exists(entry.filepath):
-			self.report({'ERROR'}, f"{entry.filepath} doesn't exist!")
-			return {'CANCELLED'}
-		
-		try:
-			with bpy.data.libraries.load(entry.filepath, link=True, relative=True) as (From, To):
-				if obj:
-					To.objects = [obj]
-				if col:
-					To.collections = [col]
-		except:
-			self.report({'ERROR'}, f'The .blend you are trying to open is corrupt!')
-			return {'CANCELLED'}
-
-		if obj:
-			if To.objects[0] == None:
-				self.report({'ERROR'}, f'Object "{obj}" could not be found in {os.path.basename(entry.filepath)}')
-				return {'CANCELLED'}
-			return load_data(self, context, scene_viewlayer, ind_prefs=prefs, obj=To.objects[0])
-		
-		if col:
-			if To.collections[0] == None:
-				self.report({'ERROR'}, f'Collection "{col}" could not be found in {os.path.basename(entry.filepath)}')
-				return {'CANCELLED'}
-			return load_data(self, context, scene_viewlayer, ind_prefs=prefs, col=To.collections[0])
-		
-		import_scene = bpy.data.scenes.get(self.scene, None) or context.scene
-		view_layer = getattr(import_scene, 'view_layers', [context.view_layer])[0] if self.scene else context.view_layer
-
-		scene_viewlayer = [import_scene, view_layer]
-		
-		self.report({'WARNING'}, 'What? Neither object nor collection was specified for an import!')
-		return {'CANCELLED'}'''
 	
 	def draw(self, context):
 		sentences = f'''This is for checking how much storage you save with OptiPloy.
