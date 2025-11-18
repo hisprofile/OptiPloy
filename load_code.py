@@ -498,7 +498,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 				top = top.parent
 				all_objs.append(top)
 			center = get_collection_dimensions(all_objs)
-			top.matrix_world = Matrix.Translation(scene.cursor.location) @ center.inverted() @ object.matrix_world
+			top.matrix_world = Matrix.Translation(scene.cursor.location) @ center.inverted() @ top.matrix_world
 
 	context.scene['new_spawn'] = spawned # assign the newly spawned item to a globally accessible variable, giving developers the opportunity to further modify data in the scripts execution stage
 	scene['optiploy_last_spawned'] = spawned
@@ -507,6 +507,8 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 	if prefs.execute_scripts:
 		script_exec_failed = False
 		for text in filter(lambda a: isinstance(a, bpy.types.Text), gatherings['linked']):
+			if getattr(text, 'optiploy_text_behavior', 'EXECUTE') == 'NO_EXECUTE':
+				continue
 			name_check = text.name.casefold().rsplit('.', 1)
 			if len(name_check) == 1:
 				pass
