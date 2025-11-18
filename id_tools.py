@@ -452,6 +452,16 @@ def id_behavior_update(self, context: bpy.types.Context):
         [setattr(id, 'optiploy_id_behavior', self.optiploy_id_behavior) for id in context.selected_ids]
     id_behavior_update_block = False
 
+def text_behavior_update(self, context: bpy.types.Context):
+    global id_behavior_update_block
+    if id_behavior_update_block:
+        return
+    id_behavior_update_block = True
+
+    if getattr(context.area, 'type', None) == 'OUTLINER':
+        [setattr(id, 'optiploy_text_behavior', self.optiploy_text_behavior) for id in context.selected_ids if isinstance(id, bpy.types.Text)]
+    id_behavior_update_block = False
+
 class SPAWNER_PT_id_behavior(Panel):
     bl_label = 'OptiPloy ID Behavior'
     bl_region_type = 'WINDOW'
@@ -466,6 +476,11 @@ class SPAWNER_PT_id_behavior(Panel):
         
         col = layout.column()
         col.props_enum(context.id, 'optiploy_id_behavior')
+
+        if isinstance(context.id, bpy.types.Text):
+            col = layout.column()
+            col.label(text='Text Behavior')
+            col.props_enum(context.id, 'optiploy_text_behavior')
 
 extra_register.append(extend_props)
 extra_unregister.append(remove_props)
@@ -497,8 +512,16 @@ def register():
         default='DO_NOTHING',
         update=id_behavior_update
     )
-
-    pass
+    bpy.types.Text.optiploy_text_behavior = EnumProperty(
+        items=(
+            ('NO_EXECUTE', 'Do Not Execute', 'Do not execute this text'),
+            ('EXECUTE', 'Always Execute', 'Always execute this text')
+        ),
+        name='Text Behavior',
+        description='Change how OptiPloy treats imported Texts',
+        default='EXECUTE',
+        update=text_behavior_update
+    )
 
 def unregister():
     bpy.types.UI_MT_button_context_menu.remove(menu_func)

@@ -485,7 +485,7 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 				if any([con.type == 'CHILD_OF' for con in object.constraints]): continue
 				object.matrix_world = Matrix.Translation(scene.cursor.location) @ center.inverted() @ object.matrix_world
 
-	if obj and prefs.to_cursor:
+	if obj:
 		top = spawned
 		if prefs.placement_type == 'BY_ORIGIN':
 			while top.parent != None:
@@ -507,6 +507,13 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 	if prefs.execute_scripts:
 		script_exec_failed = False
 		for text in filter(lambda a: isinstance(a, bpy.types.Text), gatherings['linked']):
+			name_check = text.name.casefold().rsplit('.', 1)
+			if len(name_check) == 1:
+				pass
+			elif name_check[-1] == 'py':
+				pass
+			else:
+				continue
 			try:
 				text.as_module()
 			except Exception as err:
@@ -519,23 +526,21 @@ def load_data(op: bpy.types.Operator, context: bpy.types.Context, scene_viewlaye
 		if script_exec_failed:
 			op.report({'ERROR'}, 'Script(s) failed to execute. Read console for information!')
 
-	scn = scene
-
 	# init rigid body physics
 	for id in filter(lambda a: isinstance(a, bpy.types.Object), gatherings['override']):
 		if getattr(id, 'rigid_body', None):
-			if scn.rigidbody_world == None:
+			if scene.rigidbody_world == None:
 				bpy.ops.rigidbody.world_add()
-			if (rbw := getattr(scn.rigidbody_world, 'collection', None)) == None:
+			if (rbw := getattr(scene.rigidbody_world, 'collection', None)) == None:
 				rbw = bpy.data.collections.new('RigidBodyWorld')
-				scn.rigidbody_world.collection = rbw
+				scene.rigidbody_world.collection = rbw
 			if not id in list(rbw.objects): rbw.objects.link(id)
 		if getattr(id, 'rigid_body_constraint', None):
-			if scn.rigidbody_world == None:
+			if scene.rigidbody_world == None:
 				bpy.ops.rigidbody.world_add()
-			if (rbc := getattr(scn.rigidbody_world, 'constraints', None)) == None:
+			if (rbc := getattr(scene.rigidbody_world, 'constraints', None)) == None:
 				rbc = bpy.data.collections.new('RigidBodyConstraints')
-				scn.rigidbody_world.constraints = rbc
+				scene.rigidbody_world.constraints = rbc
 			if not id in list(rbc.objects): rbc.objects.link(id)
 	
 	del context.scene['new_spawn']

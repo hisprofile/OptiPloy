@@ -2,7 +2,7 @@ bl_info = {
     "name" : 'OptiPloy' ,
     "description" : "Improve your workflow with smarter linking tools!",
     "author" : "hisanimations",
-    "version" : (1, 7, 1),
+    "version" : (1, 8, 0),
     "blender" : (3, 4, 0),
     "location" : "View3d > Spawner",
     "support" : "COMMUNITY",
