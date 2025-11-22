@@ -78,7 +78,10 @@ class SPAWNER_OT_SPAWNER(mod_saver):
 		obj = self.object
 		col = self.collection
 		prefs, entry = self.get_prefs(context)
-		test_path = os.path.join(os.path.dirname(__file__), 'test.blend')
+		if bpy.app.version >= (4, 2, 0):
+			test_path = os.path.join(bpy.utils.extension_path_user(__package__, create=True), 'test.blend')
+		else:
+			test_path = os.path.join(os.path.dirname(__file__), 'test.blend')
 		temp = bpy.data
 
 		if (was_saved := temp.is_saved):

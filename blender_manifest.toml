@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "optiploy"
-version = "1.8.0"
+version = "1.8.1"
 name = "OptiPloy: Rig Spawner"
 tagline = "Improve your workflow with smarter linking tools"
 maintainer = "hisanimations <hisprofile029@gmail.com"
