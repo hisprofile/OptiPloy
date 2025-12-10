@@ -411,7 +411,6 @@ def draw_item(self:bpy.types.Menu, context):
 	if not ids: return None
 	layout.separator()
 	layout.operator('spawner.post_optimize')
-	layout.menu('SPAWNER_MT_id_tools')
 	layout.popover('SPAWNER_PT_id_behavior')
 
 def add_optiploy_link(self:bpy.types.Menu, context):
